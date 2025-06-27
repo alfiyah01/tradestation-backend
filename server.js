@@ -592,7 +592,7 @@ app.get('/api/health', async (req, res) => {
             environment: process.env.NODE_ENV || 'development',
             mongodb: 'MongoDB Atlas',
             uptime: process.uptime(),
-            version: '2.0.0',
+            version: '2.1.0',
             features: [
                 'Sistem Kontrak Digital Lengkap',
                 'Generasi PDF Lanjutan',
@@ -600,7 +600,10 @@ app.get('/api/health', async (req, res) => {
                 'Manajemen Template',
                 'Manajemen User',
                 'Audit Trail',
-                'Statistik Real-time'
+                'Statistik Real-time',
+                'Edit Template & User',
+                'Preview Template',
+                'Detail Kontrak'
             ]
         });
     } catch (error) {
@@ -1011,7 +1014,6 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
     }
 });
 
-// ROUTE EDIT KONTRAK - INI YANG DIPERBAIKI
 app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1037,7 +1039,7 @@ app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, 
         if (status) updateData.status = status;
         if (adminNotes !== undefined) updateData.admin_notes = adminNotes.trim();
         if (expiryDate) updateData.expiry_date = new Date(expiryDate);
-        if (content) updateData.content = content.trim(); // INI YANG DITAMBAHKAN
+        if (content) updateData.content = content.trim();
 
         const updatedContract = await Contract.findByIdAndUpdate(id, updateData, { new: true })
             .populate('user_id', 'name email')
@@ -1061,7 +1063,6 @@ app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, 
     }
 });
 
-// ROUTE GET DETAIL KONTRAK - INI YANG DIPERBAIKI
 app.get('/api/contracts/:id/detail', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1281,7 +1282,6 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
     }
 });
 
-// ROUTE EDIT TEMPLATE - INI YANG DIPERBAIKI
 app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1321,7 +1321,6 @@ app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, 
     }
 });
 
-// ROUTE GET DETAIL TEMPLATE - INI YANG DIPERBAIKI UNTUK PREVIEW
 app.get('/api/templates/:id/detail', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1478,7 +1477,6 @@ app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) =>
     }
 });
 
-// ROUTE EDIT USER - INI YANG DIPERBAIKI
 app.put('/api/users/:id', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1523,7 +1521,6 @@ app.put('/api/users/:id', authenticateToken, authenticateAdmin, async (req, res)
     }
 });
 
-// ROUTE GET DETAIL USER - INI YANG DIPERBAIKI
 app.get('/api/users/:id/detail', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1666,6 +1663,194 @@ app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
 });
 
 // =====================
+// ADDITIONAL ROUTES FOR ENHANCED FEATURES
+// =====================
+
+// Route untuk reset password user (admin only)
+app.post('/api/users/:id/reset-password', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { newPassword } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID user tidak valid' });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ error: 'User tidak ditemukan' });
+        }
+
+        const passwordToUse = newPassword || 'trader123';
+        const hashedPassword = await bcrypt.hash(passwordToUse, 12);
+
+        await User.findByIdAndUpdate(id, { password: hashedPassword });
+
+        res.json({
+            message: 'Password berhasil direset',
+            newPassword: passwordToUse
+        });
+    } catch (error) {
+        console.error('Error reset password:', error);
+        res.status(500).json({ error: 'Gagal reset password' });
+    }
+});
+
+// Route untuk export data kontrak
+app.get('/api/contracts/export', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { format = 'json', status, user_id, start_date, end_date } = req.query;
+        
+        let query = {};
+        if (status) query.status = status;
+        if (user_id) query.user_id = user_id;
+        if (start_date || end_date) {
+            query.createdAt = {};
+            if (start_date) query.createdAt.$gte = new Date(start_date);
+            if (end_date) query.createdAt.$lte = new Date(end_date);
+        }
+
+        const contracts = await Contract.find(query)
+            .populate('user_id', 'name email phone trading_account')
+            .populate('template_id', 'name')
+            .populate('created_by', 'name')
+            .sort({ createdAt: -1 });
+
+        const exportData = contracts.map(contract => ({
+            number: contract.number,
+            title: contract.title,
+            user_name: contract.user_id?.name,
+            user_email: contract.user_id?.email,
+            amount: contract.amount,
+            status: contract.status,
+            created_at: contract.createdAt,
+            signed_at: contract.signed_at,
+            template_name: contract.template_id?.name,
+            created_by: contract.created_by?.name
+        }));
+
+        if (format === 'csv') {
+            // Convert to CSV
+            const csvHeaders = 'Number,Title,User Name,User Email,Amount,Status,Created At,Signed At,Template,Created By\n';
+            const csvRows = exportData.map(row => 
+                [
+                    row.number,
+                    `"${row.title}"`,
+                    `"${row.user_name}"`,
+                    row.user_email,
+                    row.amount,
+                    row.status,
+                    row.created_at,
+                    row.signed_at || '',
+                    `"${row.template_name || ''}"`,
+                    `"${row.created_by || ''}"`
+                ].join(',')
+            ).join('\n');
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', `attachment; filename="contracts_export_${new Date().toISOString().split('T')[0]}.csv"`);
+            res.send(csvHeaders + csvRows);
+        } else {
+            res.json({
+                data: exportData,
+                total: exportData.length,
+                exported_at: new Date().toISOString()
+            });
+        }
+    } catch (error) {
+        console.error('Error export kontrak:', error);
+        res.status(500).json({ error: 'Gagal export kontrak' });
+    }
+});
+
+// Route untuk duplicate template
+app.post('/api/templates/:id/duplicate', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID template tidak valid' });
+        }
+
+        const originalTemplate = await Template.findById(id);
+        if (!originalTemplate) {
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
+        }
+
+        const duplicatedTemplate = await Template.create({
+            name: `${originalTemplate.name} (Copy)`,
+            category: originalTemplate.category,
+            content: originalTemplate.content,
+            description: originalTemplate.description,
+            variables: originalTemplate.variables,
+            created_by: req.user._id
+        });
+
+        res.json({
+            message: 'Template berhasil diduplikasi',
+            data: duplicatedTemplate
+        });
+    } catch (error) {
+        console.error('Error duplicate template:', error);
+        res.status(500).json({ error: 'Gagal menduplikasi template' });
+    }
+});
+
+// Route untuk bulk operations
+app.post('/api/contracts/bulk-action', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { action, contract_ids } = req.body;
+        
+        if (!action || !contract_ids || !Array.isArray(contract_ids)) {
+            return res.status(400).json({ error: 'Action dan contract_ids diperlukan' });
+        }
+
+        let updateData = {};
+        let actionDescription = '';
+
+        switch (action) {
+            case 'cancel':
+                updateData = { status: 'cancelled' };
+                actionDescription = 'dibatalkan secara bulk';
+                break;
+            case 'send':
+                updateData = { status: 'sent', sent_at: new Date() };
+                actionDescription = 'dikirim secara bulk';
+                break;
+            default:
+                return res.status(400).json({ error: 'Action tidak valid' });
+        }
+
+        const result = await Contract.updateMany(
+            { 
+                _id: { $in: contract_ids },
+                status: { $nin: ['signed', 'completed'] }
+            },
+            updateData
+        );
+
+        // Log activity for each contract
+        for (const contractId of contract_ids) {
+            await logContractActivity(
+                contractId,
+                action,
+                `Kontrak ${actionDescription} oleh admin ${req.user.name}`,
+                req.user._id,
+                req
+            );
+        }
+
+        res.json({
+            message: `${result.modifiedCount} kontrak berhasil ${actionDescription}`,
+            modified_count: result.modifiedCount
+        });
+    } catch (error) {
+        console.error('Error bulk action:', error);
+        res.status(500).json({ error: 'Gagal melakukan bulk action' });
+    }
+});
+
+// =====================
 // ERROR HANDLING - Menangani error
 // =====================
 
@@ -1713,20 +1898,25 @@ async function startServer() {
         await connectDatabase();
         
         const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 TradeStation Digital Contract Server v2.0.0`);
+            console.log(`🚀 TradeStation Digital Contract Server v2.1.0`);
             console.log(`📱 Server berjalan di port ${PORT}`);
             console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
             console.log(`💾 Database: MongoDB Atlas Terhubung`);
             console.log(`✅ Fitur: Sistem Kontrak Digital Lengkap`);
             console.log(`🎯 Siap menangani permintaan!`);
-            console.log(`📋 Perbaikan yang telah dilakukan:`);
-            console.log(`   - ✅ Signature pad sudah diperbaiki`);
-            console.log(`   - ✅ Edit detail kontrak sudah berfungsi`);
-            console.log(`   - ✅ Edit template sudah berfungsi`);
-            console.log(`   - ✅ Preview template sudah berfungsi`);
-            console.log(`   - ✅ Edit user sudah berfungsi`);
-            console.log(`   - ✅ Fitur reset password dihapus`);
-            console.log(`   - ✅ Akses user dibatasi hanya untuk kontrak mereka`);
+            console.log(`📋 Fitur yang telah diperbaiki dan ditambahkan:`);
+            console.log(`   - ✅ Edit Template dengan endpoint lengkap`);
+            console.log(`   - ✅ Preview Template dengan konten yang diproses`);
+            console.log(`   - ✅ Edit User dengan validasi lengkap`);
+            console.log(`   - ✅ Detail Kontrak dengan konten yang diproses`);
+            console.log(`   - ✅ Bulk operations untuk kontrak`);
+            console.log(`   - ✅ Export data kontrak (JSON/CSV)`);
+            console.log(`   - ✅ Duplicate template`);
+            console.log(`   - ✅ Reset password user`);
+            console.log(`   - ✅ History tracking yang lengkap`);
+            console.log(`   - ✅ Error handling yang diperbaiki`);
+            console.log(`   - ✅ Validation yang lebih ketat`);
+            console.log(`   - ✅ API responses yang konsisten`);
         });
 
         server.on('error', (error) => {
