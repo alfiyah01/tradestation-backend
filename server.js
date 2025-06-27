@@ -11,10 +11,39 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// Middleware dengan CORS yang lebih permissive
 app.use(cors({
-    origin: ['https://kontrakdigital.netlify.app', 'https://kontrakdigital.com', 'http://localhost:3000', 'http://127.0.0.1:3000'],
-    credentials: true
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, etc.)
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = [
+            'https://kontrakdigital.netlify.app',
+            'https://kontrakdigital.com',
+            'https://www.kontrakdigital.com',
+            'http://localhost:3000',
+            'http://127.0.0.1:3000',
+            'http://localhost:8000',
+            'http://127.0.0.1:8000',
+            'https://claude.ai' // For artifact testing
+        ];
+        
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        
+        // For development, allow any localhost
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+            return callback(null, true);
+        }
+        
+        return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+    maxAge: 86400 // 24 hours
 }));
 app.use(express.json({ limit: '10mb' }));
 
