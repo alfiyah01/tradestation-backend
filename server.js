@@ -212,116 +212,132 @@ async function setupInitialData() {
                     description: 'Template lengkap untuk perjanjian konsultasi investasi dengan PT. Konsultasi Profesional Indonesia',
                     content: `# PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI
 
-**Nomor Kontrak:** {{CONTRACT_NUMBER}}  
-**Tanggal Kontrak:** {{CONTRACT_DATE}}
+**Nomor Kontrak:** {{CONTRACT_NUMBER}}
+
+## Pihak A:
+{{USER_NAME}}
+
+## Pihak B: PT. Konsultasi Profesional Indonesia
+**Alamat:** Tower 2 Lantai 17 Jl. H. R. Rasuna Said Blok X-5 No.Kav. 2-3, RT.1/RW.2, Kuningan, Jakarta Selatan 12950
+
+**Kontak:** Prof. Bima Agung Rachel
+
+**Telepon:** +62 852 - 5852 - 8771
+
+**Pihak A**, sebagai individu, setuju untuk menggunakan layanan analisis pasar atau layanan konsultasi yang disediakan oleh **Pihak B**, PT. Konsultasi Profesional Indonesia. Pihak B menyediakan layanan seperti analisis pasar, konsultasi investasi, analisis produk, laporan riset pasar, dsb. Untuk memajukan pembangunan dan kerja sama bersama yang saling menguntungkan, dan berdasarkan prinsip kesetaraan dan saling menghormati, kedua belah pihak menyepakati ketentuan-ketentuan berikut untuk kerja sama ini, dan akan secara ketat mematuhinya.
+
+## Pasal 1: Definisi Awal
+
+1.1. Biaya konsultasi layanan merujuk pada nilai profit dari investasi apapun oleh pelanggan. Anda dapat meminta Pihak B untuk melakukan analisis data, laporan, dll.
+
+1.2. Biaya transaksi merujuk pada biaya yang dibebankan oleh Pihak B kepada Pihak A. Biaya ini dihitung berdasarkan jumlah Profit dari transaksi Investasi sebesar 30 % hingga 50 %.
+
+1.3. Nilai modal Investasi Pihak A sebesar {{AMOUNT}} dengan durasi kontrak kerja sama investasi selama {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+
+## Pasal 2: Konten Layanan dan Standar Tarif
+
+2.1. Pihak B menyediakan analisis dan rekomendasi kepada Pihak A.
+
+2.2. Pihak A menyetujui metode dan jumlah pembayaran komisi konsultasi.
+
+2.3. Jika ada biaya tambahan dalam proses kerja sama, harus disetujui bersama sebelumnya.
+
+2.4. Laporan akhir yang disediakan Pihak B kepada Pihak A mencakup informasi tentang tren industri, analisis pasar, dan opini profesional lainnya.
+
+2.5. Informasi yang disediakan oleh Pihak B harus dijaga kerahasiaannya oleh Pihak A dan tidak boleh disebarkan tanpa izin tertulis.
+
+## Pasal 3: Metode Penyelesaian
+
+3.1. Pihak A akan menyelesaikan pembayaran untuk layanan konsultasi / panduan transaksi investasi setelah Pihak A mendapatkan nilai Profit dari Transaksi investasi
+
+dan pembayaran komisi konsultasi berlaku selama {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+
+3.2. Jika pembayaran tidak dilakukan tepat waktu, Pihak A akan dikenakan denda harian.
+
+3.3. Jika pembayaran tetap tidak dilakukan dalam 48 jam, maka Pihak B dapat menangguhkan layanan.
+
+3.4. Pihak A bertanggung jawab atas biaya tambahan akibat kegagalan pembayaran.
+
+3.5. Jika terjadi pembatalan, biaya layanan yang sudah dibayarkan tidak dapat dikembalikan.
+
+## Pasal 4: Hak dan Kewajiban Pihak A
+
+4.1. Pihak A berhak meminta, dan menerima data yang akurat untuk hasil profit 100 % oleh Pihak B. Jika Pihak A collapse / merugi Pihak B wajib melakukan gant rugi
+
+dengan nilai yang sama kepada Pihak A.
+
+4.2. Pihak A berhak tidak menambah nominal modal selama kontrak perjanjian kerja sama investasi ini berlaku yaitu {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+
+4.3. Pihak A berhak mendapatkan panduan investasi terbaik sebanyak 5 hingga 10 kali transaksi per harinya selama masa kontrak perjanjian kerja sama investasi ini berlaku.
+
+4.4. Pihak A wajib mengikuti panduan transaksi dengan benar oleh Pihak B. Jika melakukan transaksi investasi diluar panduan Pihak B
+
+seluruh resiko hasil transaksi tersebut bukan tanggung jawab Pihak B.
+
+4.5. Pihak A wajib bayarkan komisi konsultasi sebanyak 30 % dari nilai profit transaksi investasi dan dibayarkan setelah transaksi investasi selesai dan 
+
+wajib Penarikan seluruh modal investasi dan hasil profit transaksi investasi setelah masa durasi kontrak kerja sama investasi selama {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+
+4.6. Pihak A menjamin bahwa dana yang digunakan berasal dari sumber yang sah dan dapat dipertanggung jawabkan.
+
+4.7. Pihak A tidak boleh menggunakan informasi layanan ini untuk tindakan yang melanggar hukum seperti pencucian uang, perjudian, penghindaran pajak, dll.
+
+4.8. Pihak A wajib melakukan / mengikuti panduan investasi sebanyak 3 kali transaksi perharinya sesuai jadwal investasi dari Pihak B.
+
+## Pasal 5: Hak dan Kewajiban Pihak B
+
+5.1. Pihak B harus menangani permintaan konsultasi dari Pihak A sesuai perjanjian.
+
+5.2. Pihak B bertanggung jawab memberikan informasi konsultasi investasi secara akurat dan menanggung resiko sebesar 100% pengembalian modal jika terjadi collapse / merugi kepada Pihak A.
+
+5.3. Dalam jam kerja normal, Pihak B akan merespons permintaan dari Pihak A untuk transaksi investasi diluar jadwal yang diberikan Pihak B.
+
+5.4. Pihak B berhak mendapatkan pembayaran komisi konsultasi dari pihak A sebesar 30 % dari nilai Profit transaksi investasi.
+
+5.5. Pihak B dapat menghentikan layanan jika Pihak A tidak membayar atau bertindak mencurigakan.
+
+5.6. Pihak B tidak dibenarkan meminta pembayaran diluar jumlah yang disepekati dalam isi perjanjian kontrak kerja sama investasi ini.
+
+5.7. Pihak B tidak bertanggung jawab atas risiko operasional dari keputusan investasi yang dilakukan Pihak A tanpa panduan atau diluar panduan pihak B.
+
+5.8. Pihak B dapat menolak transaksi yang melanggar hukum atau mencurigakan.
+
+5.9. Sengketa diselesaikan melalui negosiasi damai.
+
+5.10. Pihak B wajib berikan panduan dan jadwal transaksi investasi minimal 3 kali transaksi per harinya kepada pihak A.
+
+5.11. Pihak B berhak mengakhiri perjanjian jika Pihak A melakukan kecurangan pada akun investasi. 
+
+5.12. Jika Pihak A melanggar hukum atau menyebabkan kerugian, Pihak B dapat menuntut ganti rugi dan menyelesaikan secara hukum yang berlaku di indonesia.
+
+5.13. Pihak B berhak tidak bertanggung jawab atas pembekuan seluruh aset / modal dan hasil profit investasi pihak A oleh Platform Tradestation, jika Pihak A melakukan penarikan berulang kali 
+
+selama masa durasi kontrak kerja sama investasi ini berlangsung / belum selesai.
+
+## Pasal 6: Klausul Kerahasiaan
+
+6.1. Informasi yang diperoleh oleh kedua belah pihak selama masa kontrak kerja sama investasi ini harus dijaga kerahasiaannya dan tidak boleh disebarkan kepada pihak ketiga tanpa izin tertulis.
+
+6.2. Kerahasiaan ini meliputi hal - hal penting dan sensitif serta data diri dari kedua belah pihak.
+
+6.3. Semua informasi tetap milik pihak yang memberikannya dan tidak dapat digunakan tanpa izin oleh pihak manapun.
+
+6.4. Klausul ini tetap berlaku meskipun perjanjian berakhir.
 
 ---
 
-## PIHAK PERTAMA (KLIEN)
+**Tertanda:**
 
-**Nama Lengkap:** {{USER_NAME}}  
-**Email:** {{USER_EMAIL}}  
-**Nomor Telepon:** {{USER_PHONE}}  
-**Trading Account ID:** {{TRADING_ID}}  
-**Alamat:** {{USER_ADDRESS}}
+**Perwakilan Pihak B:**                           **Tanda tangan Pihak A:**
 
----
+Prof. Bima Agung Rachel                           ( {{USER_NAME}} )
 
-## PIHAK KEDUA (PENYEDIA LAYANAN)
 
-**Nama Perusahaan:** PT. Konsultasi Profesional Indonesia  
-**Alamat:** Tower 2 Lantai 17 Jl. H. R. Rasuna Said Blok X-5 No.Kav. 2-3, RT.1/RW.2, Kuningan, Jakarta Selatan 12950  
-**Kontak Person:** Prof. Bima Agung Rachel  
-**Telepon:** +62 852 - 5852 - 8771  
-
----
-
-## PASAL 1: NILAI INVESTASI DAN BIAYA
-
-**1.1. Nilai Investasi**  
-Pihak Pertama setuju untuk melakukan investasi sebesar **{{AMOUNT}}** sebagai modal dasar untuk layanan konsultasi investasi.
-
-**1.2. Biaya Konsultasi**  
-Biaya konsultasi layanan sebesar **{{CONSULTATION_FEE}}** yang mencakup analisis pasar, rekomendasi investasi, dan laporan berkala.
-
-**1.3. Periode Kontrak**  
-Kontrak ini berlaku untuk periode **{{CONTRACT_PERIOD}}** terhitung sejak tanggal penandatanganan.
-
----
-
-## PASAL 2: LAYANAN YANG DISEDIAKAN
-
-**2.1. Analisis Pasar**  
-Pihak Kedua menyediakan analisis pasar harian, mingguan, dan bulanan sesuai dengan profil risiko Pihak Pertama.
-
-**2.2. Rekomendasi Investasi**  
-Pihak Kedua memberikan rekomendasi investasi yang disesuaikan dengan tujuan finansial dan toleransi risiko Pihak Pertama.
-
-**2.3. Laporan Kinerja**  
-Pihak Kedua menyediakan laporan kinerja investasi secara berkala setiap **{{REPORTING_FREQUENCY}}**.
-
-**2.4. Konsultasi Personal**  
-Pihak Pertama berhak mendapat konsultasi personal maksimal **{{CONSULTATION_HOURS}}** jam per bulan.
-
----
-
-## PASAL 3: PEMBAYARAN
-
-**3.1. Metode Pembayaran**  
-Pembayaran dilakukan melalui **{{PAYMENT_METHOD}}** dalam mata uang Rupiah.
-
-**3.2. Jadwal Pembayaran**  
-Pembayaran dilakukan **{{PAYMENT_SCHEDULE}}** dengan ketentuan **{{PAYMENT_TERMS}}**.
-
----
-
-## PASAL 4: HAK DAN KEWAJIBAN
-
-**4.1. Hak Pihak Pertama:**
-- Menerima layanan konsultasi sesuai perjanjian
-- Mendapat akses ke platform analisis dan laporan
-- Meminta klarifikasi atas rekomendasi yang diberikan
-
-**4.2. Kewajiban Pihak Pertama:**
-- Melakukan pembayaran tepat waktu
-- Memberikan informasi yang akurat dan lengkap
-- Menjaga kerahasiaan informasi yang diterima
-
-**4.3. Hak Pihak Kedua:**
-- Menerima pembayaran sesuai perjanjian
-- Mendapat informasi lengkap dari Pihak Pertama
-
-**4.4. Kewajiban Pihak Kedua:**
-- Memberikan layanan konsultasi sesuai standar profesional
-- Menjaga kerahasiaan informasi klien
-- Memberikan analisis yang objektif dan independen
-
----
-
-## PASAL 5: PENUTUP
-
-Kontrak ini dibuat dalam 2 (dua) rangkap yang sama kekuatan hukumnya, masing-masing pihak menerima 1 (satu) rangkap.
-
-**Ditandatangani di Jakarta pada tanggal {{CONTRACT_DATE}}**
-
-**PIHAK KEDUA**  
-PT. Konsultasi Profesional Indonesia  
-
-**Koh Seng Seng**  
-*Direktur*
-
----
-
-**PIHAK PERTAMA**  
-
-**{{USER_NAME}}**  
-*Trading ID: {{TRADING_ID}}*
-
-*Tanda tangan digital telah diverifikasi pada {{SIGNED_DATE}}*`,
+**Tanggal Penandatanganan:** {{SIGNED_DATE}}`,
                     variables: [
                         'USER_NAME', 'USER_EMAIL', 'USER_PHONE', 'USER_ADDRESS', 'TRADING_ID', 
                         'CONTRACT_NUMBER', 'CONTRACT_DATE', 'AMOUNT', 'CONSULTATION_FEE', 
-                        'CONTRACT_PERIOD', 'REPORTING_FREQUENCY', 'CONSULTATION_HOURS', 
+                        'CONTRACT_PERIOD', 'DAY', 'NUMBER', 
                         'PAYMENT_METHOD', 'PAYMENT_SCHEDULE', 'PAYMENT_TERMS', 'SIGNED_DATE'
                     ],
                     created_by: admin._id
@@ -370,7 +386,7 @@ async function generateContractPDF(contract, user, signatureData) {
     return new Promise((resolve, reject) => {
         try {
             const doc = new PDFDocument({ 
-                margin: 50,
+                margin: 40,
                 info: {
                     Title: `Kontrak ${contract.number}`,
                     Author: 'TradeStation Kontrak Digital',
@@ -388,24 +404,25 @@ async function generateContractPDF(contract, user, signatureData) {
             });
             doc.on('error', reject);
 
-            // Header dengan info kontrak
-            doc.fontSize(20).font('Helvetica-Bold').text('TRADESTATION', 50, 50, { align: 'center' });
-            doc.fontSize(14).font('Helvetica').text('KONTRAK DIGITAL INVESTASI', { align: 'center' });
+            // HEADER BARU - sesuai format PDF
+            doc.fontSize(16).font('Helvetica-Bold').text('PT. KONSULTAN PROFESIONAL INDONESIA', 40, 40, { align: 'center' });
+            doc.moveDown(0.3);
+            doc.fontSize(12).font('Helvetica-Italic').text('Partner Of', { align: 'center' });
             doc.moveDown(0.5);
             
-            // Info kontrak
-            doc.fontSize(12).font('Helvetica-Bold').text(`Nomor Kontrak: ${contract.number}`, { align: 'center' });
-            doc.fontSize(10).font('Helvetica').text(`Dibuat pada: ${new Date(contract.createdAt).toLocaleDateString('id-ID')}`, { align: 'center' });
-            doc.text(`Nilai Kontrak: ${formatCurrency(contract.amount)}`, { align: 'center' });
-            
-            if (contract.signed_at) {
-                doc.text(`Ditandatangani pada: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, { align: 'center' });
-            }
-            
+            // Logo TradeStation (text version)
+            doc.fontSize(24).font('Helvetica-Bold').fillColor('#0066CC').text('TradeStation', { align: 'center' });
+            doc.fillColor('black');
             doc.moveDown(1);
             
             // Garis pemisah
-            doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+            doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+            doc.moveDown(1);
+            
+            // Judul kontrak
+            doc.fontSize(14).font('Helvetica-Bold').text('Perjanjian Layanan Kerja Sama Konsultasi Investasi', { align: 'center' });
+            doc.moveDown(0.5);
+            doc.fontSize(11).font('Helvetica').text(`Nomor Kontrak: ${contract.number}`, { align: 'center' });
             doc.moveDown(1);
 
             // Memproses isi kontrak
@@ -435,7 +452,7 @@ async function generateContractPDF(contract, user, signatureData) {
                 content = content.replace(regex, contract.variables[key] || `[${key} - Tidak Diisi]`);
             });
 
-            // Memproses konten baris per baris
+            // Memproses konten baris per baris dengan format baru
             const lines = content.split('\n');
             
             lines.forEach(line => {
@@ -444,78 +461,80 @@ async function generateContractPDF(contract, user, signatureData) {
                     // Cek apakah perlu halaman baru
                     if (doc.y > 720) {
                         doc.addPage();
+                        // Header ulang di halaman baru
+                        doc.fontSize(16).font('Helvetica-Bold').text('PT. KONSULTAN PROFESIONAL INDONESIA', 40, 40, { align: 'center' });
+                        doc.fontSize(12).font('Helvetica-Italic').text('Partner Of', { align: 'center' });
+                        doc.fontSize(18).font('Helvetica-Bold').fillColor('#0066CC').text('TradeStation', { align: 'center' });
+                        doc.fillColor('black').moveDown(1);
                     }
                     
                     if (line.startsWith('# ')) {
-                        doc.fontSize(16).font('Helvetica-Bold').text(line.substring(2), { align: 'center' });
+                        doc.fontSize(14).font('Helvetica-Bold').text(line.substring(2), { align: 'center' });
                         doc.moveDown(0.5);
                     } else if (line.startsWith('## ')) {
-                        doc.fontSize(14).font('Helvetica-Bold').text(line.substring(3));
+                        doc.fontSize(12).font('Helvetica-Bold').fillColor('#0066CC').text(line.substring(3));
+                        doc.fillColor('black');
                         doc.moveDown(0.3);
                     } else if (line.startsWith('**') && line.endsWith('**')) {
                         const text = line.replace(/\*\*/g, '');
-                        doc.fontSize(11).font('Helvetica-Bold').text(text);
+                        doc.fontSize(10).font('Helvetica-Bold').text(text);
                         doc.moveDown(0.2);
                     } else if (line.startsWith('---')) {
                         doc.moveDown(0.3);
-                        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
+                        doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
                         doc.moveDown(0.3);
                     } else {
                         const processedLine = line.replace(/\*\*(.*?)\*\*/g, '$1');
-                        doc.fontSize(10).font('Helvetica').text(processedLine, { 
+                        doc.fontSize(9).font('Helvetica').text(processedLine, { 
                             align: 'justify',
-                            lineGap: 2
+                            lineGap: 1
                         });
-                        doc.moveDown(0.2);
+                        doc.moveDown(0.15);
                     }
                 }
             });
 
-            // Bagian tanda tangan
+            // Bagian tanda tangan - halaman baru
             doc.addPage();
-            doc.fontSize(16).font('Helvetica-Bold').text('TANDA TANGAN DIGITAL', { align: 'center' });
-            doc.moveDown(1);
+            
+            // Header tanda tangan
+            doc.fontSize(16).font('Helvetica-Bold').text('PT. KONSULTAN PROFESIONAL INDONESIA', 40, 40, { align: 'center' });
+            doc.fontSize(12).font('Helvetica-Italic').text('Partner Of', { align: 'center' });
+            doc.fontSize(18).font('Helvetica-Bold').fillColor('#0066CC').text('TradeStation', { align: 'center' });
+            doc.fillColor('black').moveDown(2);
             
             if (signatureData && contract.signed_at) {
-                doc.fontSize(12).font('Helvetica-Bold').text('✅ KONTRAK TELAH DITANDATANGANI SECARA SAH', { align: 'center' });
-                doc.moveDown(0.5);
+                doc.fontSize(12).font('Helvetica-Bold').text('KONTRAK TELAH DITANDATANGANI', { align: 'center' });
+                doc.moveDown(1);
                 
-                // Kotak info tanda tangan
-                doc.rect(100, doc.y, 350, 120).stroke();
-                const signatureY = doc.y + 10;
+                // Area tanda tangan
+                const signatureY = doc.y + 50;
                 
-                doc.fontSize(11).font('Helvetica-Bold').text('INFORMASI PENANDATANGANAN:', 110, signatureY);
-                doc.fontSize(10).font('Helvetica');
-                doc.text(`Nama: ${user.name}`, 110, signatureY + 20);
-                doc.text(`Email: ${user.email}`, 110, signatureY + 35);
-                doc.text(`Trading ID: ${user.trading_account}`, 110, signatureY + 50);
-                doc.text(`Tanggal: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, 110, signatureY + 65);
-                doc.text(`IP Address: ${contract.ip_signed || 'N/A'}`, 110, signatureY + 80);
-                doc.text(`Metode: Tanda Tangan Digital`, 110, signatureY + 95);
+                // Kolom kiri - Pihak B
+                doc.fontSize(11).font('Helvetica-Bold').text('Perwakilan Pihak B:', 80, signatureY);
+                doc.moveDown(3);
+                doc.fontSize(10).font('Helvetica').text('Prof. Bima Agung Rachel', 80);
                 
-                doc.moveDown(8);
+                // Kolom kanan - Pihak A  
+                doc.fontSize(11).font('Helvetica-Bold').text('Tanda tangan Pihak A:', 350, signatureY);
+                doc.fontSize(10).font('Helvetica').text(`( ${user.name} )`, 350, signatureY + 45);
                 
-                // Verifikasi tanda tangan digital
-                doc.fontSize(10).font('Helvetica-Italic').text(
-                    'Dokumen ini telah ditandatangani secara digital dan terverifikasi oleh sistem TradeStation. ' +
-                    'Tanda tangan digital memiliki kekuatan hukum yang sama dengan tanda tangan basah ' +
-                    'sesuai UU No. 11 Tahun 2008 tentang Informasi dan Transaksi Elektronik.',
-                    { align: 'justify' }
-                );
+                doc.moveDown(4);
+                doc.fontSize(10).font('Helvetica').text(`Tanggal Penandatanganan: ${new Date(contract.signed_at).toLocaleDateString('id-ID')}`, { align: 'center' });
+                
             } else {
-                doc.fontSize(12).font('Helvetica').text('⏳ MENUNGGU TANDA TANGAN DIGITAL', { align: 'center' });
-                doc.moveDown(0.5);
-                doc.fontSize(10).text('Kontrak ini belum ditandatangani oleh pihak yang bersangkutan', { align: 'center' });
+                doc.fontSize(12).font('Helvetica').text('MENUNGGU TANDA TANGAN', { align: 'center' });
             }
 
             // Footer
             doc.fontSize(8).font('Helvetica-Italic').text(
                 `Dokumen ini dibuat secara otomatis oleh TradeStation pada ${new Date().toLocaleString('id-ID')}`,
-                50, 750, { align: 'center' }
+                40, 750, { align: 'center' }
             );
 
             doc.end();
         } catch (error) {
+            console.error('Error generating PDF:', error);
             reject(error);
         }
     });
@@ -863,6 +882,8 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
         if (!['signed', 'completed'].includes(contract.status)) {
             return res.status(400).json({ error: 'Kontrak belum ditandatangani' });
         }
+
+        console.log('Generating PDF for contract:', contractId);
 
         const pdfBuffer = await generateContractPDF(contract, contract.user_id, contract.signature_data);
 
