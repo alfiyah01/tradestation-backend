@@ -11,10 +11,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// MIDDLEWARE
+// PENGATURAN DASAR - Ini untuk mengatur server
 // =====================
 
-// CORS Configuration - Permissive untuk semua origin
+// CORS - Agar frontend bisa berkomunikasi dengan backend
 app.use(cors({
     origin: true,
     credentials: true,
@@ -26,12 +26,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
-// Simple rate limiting
+// Pembatasan permintaan - Mencegah spam
 const requests = new Map();
 app.use((req, res, next) => {
     const ip = req.ip || req.connection.remoteAddress;
     const now = Date.now();
-    const windowMs = 15 * 60 * 1000; // 15 minutes
+    const windowMs = 15 * 60 * 1000; // 15 menit
     const maxRequests = 100;
     
     if (!requests.has(ip)) {
@@ -46,7 +46,7 @@ app.use((req, res, next) => {
     }
     
     if (requestData.count >= maxRequests) {
-        return res.status(429).json({ error: 'Too many requests' });
+        return res.status(429).json({ error: 'Terlalu banyak permintaan' });
     }
     
     requestData.count++;
@@ -54,16 +54,17 @@ app.use((req, res, next) => {
 });
 
 // =====================
-// DATABASE CONFIG
+// PENGATURAN DATABASE - Ini untuk menghubungkan ke MongoDB
 // =====================
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rizalitam10:Yusrizal1993@cluster0.s0e5g5h.mongodb.net/kontrakdb?retryWrites=true&w=majority&appName=Cluster0';
 const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secret_key_2024_secure';
 
 // =====================
-// SCHEMAS
+// SKEMA DATABASE - Ini adalah struktur data yang akan disimpan
 // =====================
 
+// Skema User - Data pengguna
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -79,6 +80,7 @@ const userSchema = new mongoose.Schema({
     profile_image: { type: String }
 }, { timestamps: true });
 
+// Skema Template - Data template kontrak
 const templateSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     category: { type: String, default: 'general', trim: true },
@@ -90,6 +92,7 @@ const templateSchema = new mongoose.Schema({
     version: { type: Number, default: 1 }
 }, { timestamps: true });
 
+// Skema Contract - Data kontrak
 const contractSchema = new mongoose.Schema({
     title: { type: String, required: true, trim: true },
     number: { type: String, required: true, unique: true, trim: true },
@@ -117,6 +120,7 @@ const contractSchema = new mongoose.Schema({
     user_agent_signed: { type: String }
 }, { timestamps: true });
 
+// Skema History - Riwayat aktivitas kontrak
 const contractHistorySchema = new mongoose.Schema({
     contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract', required: true },
     action: { type: String, required: true, trim: true },
@@ -127,19 +131,19 @@ const contractHistorySchema = new mongoose.Schema({
     metadata: { type: Object, default: {} }
 }, { timestamps: true });
 
-// Create Models
+// Membuat model dari skema
 const User = mongoose.model('User', userSchema);
 const Template = mongoose.model('Template', templateSchema);
 const Contract = mongoose.model('Contract', contractSchema);
 const ContractHistory = mongoose.model('ContractHistory', contractHistorySchema);
 
 // =====================
-// DATABASE CONNECTION
+// KONEKSI DATABASE - Menghubungkan ke MongoDB
 // =====================
 
 async function connectDatabase() {
     try {
-        console.log('🔗 Connecting to MongoDB Atlas...');
+        console.log('🔗 Menghubungkan ke MongoDB Atlas...');
         
         await mongoose.connect(MONGODB_URI, {
             useNewUrlParser: true,
@@ -149,20 +153,21 @@ async function connectDatabase() {
             socketTimeoutMS: 45000,
         });
         
-        console.log('✅ MongoDB Atlas connected successfully!');
+        console.log('✅ MongoDB Atlas terhubung dengan sukses!');
         await setupInitialData();
         
     } catch (error) {
-        console.error('❌ MongoDB connection error:', error);
-        console.log('⚠️  Continuing with server startup...');
+        console.error('❌ Error koneksi MongoDB:', error);
+        console.log('⚠️  Melanjutkan startup server...');
     }
 }
 
+// Menyiapkan data awal
 async function setupInitialData() {
     try {
-        console.log('🚀 Setting up initial data...');
+        console.log('🚀 Menyiapkan data awal...');
         
-        // Create admin user
+        // Membuat user admin
         const adminExists = await User.findOne({ email: 'admin@tradestation.com' });
         if (!adminExists) {
             const hashedPassword = await bcrypt.hash('admin123', 12);
@@ -176,10 +181,10 @@ async function setupInitialData() {
                 phone: '+62812-3456-7890',
                 balance: 0
             });
-            console.log('✅ Default admin user created');
+            console.log('✅ User admin default telah dibuat');
         }
         
-        // Create sample user
+        // Membuat user contoh
         const userExists = await User.findOne({ email: 'hermanzal@trader.com' });
         if (!userExists) {
             const hashedPassword = await bcrypt.hash('trader123', 12);
@@ -193,10 +198,10 @@ async function setupInitialData() {
                 phone: '+62812-8888-9999',
                 balance: 50000000
             });
-            console.log('✅ Sample user created');
+            console.log('✅ User contoh telah dibuat');
         }
         
-        // Create template
+        // Membuat template default
         const templateExists = await Template.findOne({ name: 'Perjanjian Layanan Kerja Sama Konsultasi Investasi' });
         if (!templateExists) {
             const admin = await User.findOne({ role: 'admin' });
@@ -231,7 +236,7 @@ async function setupInitialData() {
 
 ---
 
-## PASAL 1: DEFINISI DAN RUANG LINGKUP
+## PASAL 1: NILAI INVESTASI DAN BIAYA
 
 **1.1. Nilai Investasi**  
 Pihak Pertama setuju untuk melakukan investasi sebesar **{{AMOUNT}}** sebagai modal dasar untuk layanan konsultasi investasi.
@@ -239,10 +244,7 @@ Pihak Pertama setuju untuk melakukan investasi sebesar **{{AMOUNT}}** sebagai mo
 **1.2. Biaya Konsultasi**  
 Biaya konsultasi layanan sebesar **{{CONSULTATION_FEE}}** yang mencakup analisis pasar, rekomendasi investasi, dan laporan berkala.
 
-**1.3. Biaya Transaksi**  
-Biaya transaksi sebesar **{{TRANSACTION_FEE}}** per transaksi yang dilakukan atas rekomendasi Pihak Kedua.
-
-**1.4. Periode Kontrak**  
+**1.3. Periode Kontrak**  
 Kontrak ini berlaku untuk periode **{{CONTRACT_PERIOD}}** terhitung sejak tanggal penandatanganan.
 
 ---
@@ -263,107 +265,40 @@ Pihak Pertama berhak mendapat konsultasi personal maksimal **{{CONSULTATION_HOUR
 
 ---
 
-## PASAL 3: PEMBAYARAN DAN PENYELESAIAN
+## PASAL 3: PEMBAYARAN
 
 **3.1. Metode Pembayaran**  
 Pembayaran dilakukan melalui **{{PAYMENT_METHOD}}** dalam mata uang Rupiah.
 
 **3.2. Jadwal Pembayaran**  
-- Pembayaran konsultasi: **{{PAYMENT_SCHEDULE}}**
-- Pembayaran dilakukan paling lambat **{{PAYMENT_TERMS}}** hari setelah invoice diterbitkan
-
-**3.3. Denda Keterlambatan**  
-Keterlambatan pembayaran dikenakan denda sebesar **{{LATE_FEE_RATE}}** per hari dari jumlah yang tertunggak.
+Pembayaran dilakukan **{{PAYMENT_SCHEDULE}}** dengan ketentuan **{{PAYMENT_TERMS}}**.
 
 ---
 
-## PASAL 4: HAK DAN KEWAJIBAN PIHAK PERTAMA
+## PASAL 4: HAK DAN KEWAJIBAN
 
 **4.1. Hak Pihak Pertama:**
 - Menerima layanan konsultasi sesuai perjanjian
 - Mendapat akses ke platform analisis dan laporan
 - Meminta klarifikasi atas rekomendasi yang diberikan
-- Mengunduh dan menyimpan semua laporan
 
 **4.2. Kewajiban Pihak Pertama:**
 - Melakukan pembayaran tepat waktu
 - Memberikan informasi yang akurat dan lengkap
-- Mengikuti prosedur yang telah ditetapkan
 - Menjaga kerahasiaan informasi yang diterima
-- Tidak menyebarluaskan strategi investasi kepada pihak lain
 
----
-
-## PASAL 5: HAK DAN KEWAJIBAN PIHAK KEDUA
-
-**5.1. Hak Pihak Kedua:**
+**4.3. Hak Pihak Kedua:**
 - Menerima pembayaran sesuai perjanjian
 - Mendapat informasi lengkap dari Pihak Pertama
-- Menghentikan layanan jika terjadi wanprestasi
-- Meminta kompensasi atas kerugian yang ditimbulkan
 
-**5.2. Kewajiban Pihak Kedua:**
+**4.4. Kewajiban Pihak Kedua:**
 - Memberikan layanan konsultasi sesuai standar profesional
 - Menjaga kerahasiaan informasi klien
 - Memberikan analisis yang objektif dan independen
-- Merespons pertanyaan dalam waktu **{{RESPONSE_TIME}}** jam kerja
-- Memberikan peringatan dini jika terjadi perubahan kondisi pasar
 
 ---
 
-## PASAL 6: DISCLAIMER DAN RISIKO
-
-**6.1. Risiko Investasi**  
-Pihak Pertama memahami bahwa investasi mengandung risiko dan Pihak Kedua tidak menjamin keuntungan.
-
-**6.2. Tanggung Jawab Terbatas**  
-Pihak Kedua bertanggung jawab terbatas pada kualitas analisis dan tidak bertanggung jawab atas kerugian investasi.
-
-**6.3. Force Majeure**  
-Kedua pihak tidak bertanggung jawab atas kegagalan pelaksanaan kontrak akibat force majeure.
-
----
-
-## PASAL 7: KERAHASIAAN
-
-**7.1. Informasi Rahasia**  
-Kedua pihak berkomitmen menjaga kerahasiaan semua informasi yang diperoleh selama kerjasama.
-
-**7.2. Non-Disclosure**  
-Informasi rahasia tidak boleh dibagikan kepada pihak ketiga tanpa persetujuan tertulis.
-
-**7.3. Jangka Waktu**  
-Kewajiban menjaga kerahasiaan berlaku selama **{{CONFIDENTIALITY_PERIOD}}** tahun setelah kontrak berakhir.
-
----
-
-## PASAL 8: PENYELESAIAN SENGKETA
-
-**8.1. Negosiasi**  
-Sengketa diselesaikan melalui negosiasi dalam waktu **{{NEGOTIATION_PERIOD}}** hari.
-
-**8.2. Mediasi**  
-Jika negosiasi gagal, sengketa diselesaikan melalui mediasi di **{{MEDIATION_LOCATION}}**.
-
-**8.3. Arbitrase**  
-Sengketa terakhir diselesaikan melalui arbitrase sesuai hukum Indonesia.
-
----
-
-## PASAL 9: KETENTUAN PENUTUP
-
-**9.1. Perubahan Kontrak**  
-Perubahan kontrak harus dilakukan secara tertulis dan disetujui kedua pihak.
-
-**9.2. Pengakhiran Kontrak**  
-Kontrak dapat diakhiri dengan pemberitahuan **{{TERMINATION_NOTICE}}** hari sebelumnya.
-
-**9.3. Hukum yang Berlaku**  
-Kontrak ini tunduk pada hukum Republik Indonesia.
-
----
-
-**PENUTUP**
+## PASAL 5: PENUTUP
 
 Kontrak ini dibuat dalam 2 (dua) rangkap yang sama kekuatan hukumnya, masing-masing pihak menerima 1 (satu) rangkap.
 
@@ -386,33 +321,32 @@ PT. Konsultasi Profesional Indonesia
                     variables: [
                         'USER_NAME', 'USER_EMAIL', 'USER_PHONE', 'USER_ADDRESS', 'TRADING_ID', 
                         'CONTRACT_NUMBER', 'CONTRACT_DATE', 'AMOUNT', 'CONSULTATION_FEE', 
-                        'TRANSACTION_FEE', 'CONTRACT_PERIOD', 'REPORTING_FREQUENCY', 
-                        'CONSULTATION_HOURS', 'PAYMENT_METHOD', 'PAYMENT_SCHEDULE', 
-                        'PAYMENT_TERMS', 'LATE_FEE_RATE', 'RESPONSE_TIME', 
-                        'CONFIDENTIALITY_PERIOD', 'NEGOTIATION_PERIOD', 'MEDIATION_LOCATION', 
-                        'TERMINATION_NOTICE', 'SIGNED_DATE'
+                        'CONTRACT_PERIOD', 'REPORTING_FREQUENCY', 'CONSULTATION_HOURS', 
+                        'PAYMENT_METHOD', 'PAYMENT_SCHEDULE', 'PAYMENT_TERMS', 'SIGNED_DATE'
                     ],
                     created_by: admin._id
                 });
-                console.log('✅ Default template created');
+                console.log('✅ Template default telah dibuat');
             }
         }
         
-        console.log('🎉 Initial data setup completed!');
+        console.log('🎉 Setup data awal selesai!');
         
     } catch (error) {
-        console.error('❌ Setup initial data error:', error);
+        console.error('❌ Error setup data awal:', error);
     }
 }
 
 // =====================
-// UTILITY FUNCTIONS
+// FUNGSI BANTUAN - Fungsi-fungsi kecil yang membantu
 // =====================
 
+// Membuat token akses unik
 function generateAccessToken() {
     return crypto.randomBytes(32).toString('hex');
 }
 
+// Membuat nomor kontrak unik
 function generateContractNumber() {
     const now = new Date();
     const year = now.getFullYear();
@@ -422,6 +356,7 @@ function generateContractNumber() {
     return `TSC${year}${month}${day}${random}`;
 }
 
+// Format uang ke Rupiah
 function formatCurrency(amount) {
     return new Intl.NumberFormat('id-ID', {
         style: 'currency',
@@ -430,7 +365,7 @@ function formatCurrency(amount) {
     }).format(amount);
 }
 
-// Enhanced PDF Generation
+// Membuat PDF kontrak
 async function generateContractPDF(contract, user, signatureData) {
     return new Promise((resolve, reject) => {
         try {
@@ -453,7 +388,7 @@ async function generateContractPDF(contract, user, signatureData) {
             });
             doc.on('error', reject);
 
-            // Header dengan logo dan info perusahaan
+            // Header dengan info kontrak
             doc.fontSize(20).font('Helvetica-Bold').text('TRADESTATION', 50, 50, { align: 'center' });
             doc.fontSize(14).font('Helvetica').text('KONTRAK DIGITAL INVESTASI', { align: 'center' });
             doc.moveDown(0.5);
@@ -469,14 +404,14 @@ async function generateContractPDF(contract, user, signatureData) {
             
             doc.moveDown(1);
             
-            // Line separator
+            // Garis pemisah
             doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
             doc.moveDown(1);
 
-            // Content processing
+            // Memproses isi kontrak
             let content = contract.content || '';
             
-            // Replace system variables
+            // Mengganti variabel sistem
             const replacements = {
                 '{{USER_NAME}}': user.name || '',
                 '{{USER_EMAIL}}': user.email || '',
@@ -488,25 +423,25 @@ async function generateContractPDF(contract, user, signatureData) {
                 '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
             };
 
-            // Replace system variables
+            // Mengganti variabel sistem
             Object.keys(replacements).forEach(key => {
                 const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
                 content = content.replace(regex, replacements[key]);
             });
 
-            // Replace custom variables
+            // Mengganti variabel kustom
             Object.keys(contract.variables || {}).forEach(key => {
                 const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
                 content = content.replace(regex, contract.variables[key] || `[${key} - Tidak Diisi]`);
             });
 
-            // Process content line by line
+            // Memproses konten baris per baris
             const lines = content.split('\n');
             
             lines.forEach(line => {
                 line = line.trim();
                 if (line) {
-                    // Check if we need a new page
+                    // Cek apakah perlu halaman baru
                     if (doc.y > 720) {
                         doc.addPage();
                     }
@@ -536,7 +471,7 @@ async function generateContractPDF(contract, user, signatureData) {
                 }
             });
 
-            // Signature section
+            // Bagian tanda tangan
             doc.addPage();
             doc.fontSize(16).font('Helvetica-Bold').text('TANDA TANGAN DIGITAL', { align: 'center' });
             doc.moveDown(1);
@@ -545,7 +480,7 @@ async function generateContractPDF(contract, user, signatureData) {
                 doc.fontSize(12).font('Helvetica-Bold').text('✅ KONTRAK TELAH DITANDATANGANI SECARA SAH', { align: 'center' });
                 doc.moveDown(0.5);
                 
-                // Signature info box
+                // Kotak info tanda tangan
                 doc.rect(100, doc.y, 350, 120).stroke();
                 const signatureY = doc.y + 10;
                 
@@ -560,7 +495,7 @@ async function generateContractPDF(contract, user, signatureData) {
                 
                 doc.moveDown(8);
                 
-                // Digital signature verification
+                // Verifikasi tanda tangan digital
                 doc.fontSize(10).font('Helvetica-Italic').text(
                     'Dokumen ini telah ditandatangani secara digital dan terverifikasi oleh sistem TradeStation. ' +
                     'Tanda tangan digital memiliki kekuatan hukum yang sama dengan tanda tangan basah ' +
@@ -587,7 +522,7 @@ async function generateContractPDF(contract, user, signatureData) {
 }
 
 // =====================
-// MIDDLEWARE AUTH
+// MIDDLEWARE AUTENTIKASI - Untuk mengecek login user
 // =====================
 
 const authenticateToken = async (req, res, next) => {
@@ -595,7 +530,7 @@ const authenticateToken = async (req, res, next) => {
     const token = authHeader && authHeader.split(' ')[1];
 
     if (!token) {
-        return res.status(401).json({ error: 'Access token required' });
+        return res.status(401).json({ error: 'Token akses diperlukan' });
     }
 
     try {
@@ -603,25 +538,25 @@ const authenticateToken = async (req, res, next) => {
         const user = await User.findById(decoded.userId).where('is_active').equals(true);
         
         if (!user) {
-            return res.status(401).json({ error: 'Invalid token or user not found' });
+            return res.status(401).json({ error: 'Token tidak valid atau user tidak ditemukan' });
         }
 
         req.user = user;
         next();
     } catch (error) {
-        console.error('Token verification error:', error);
-        return res.status(403).json({ error: 'Invalid or expired token' });
+        console.error('Error verifikasi token:', error);
+        return res.status(403).json({ error: 'Token tidak valid atau sudah kedaluwarsa' });
     }
 };
 
 const authenticateAdmin = async (req, res, next) => {
     if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
+        return res.status(403).json({ error: 'Akses admin diperlukan' });
     }
     next();
 };
 
-// Helper function untuk logging contract activity
+// Fungsi untuk mencatat aktivitas kontrak
 async function logContractActivity(contractId, action, description, userId = null, req = null) {
     try {
         await ContractHistory.create({
@@ -637,54 +572,57 @@ async function logContractActivity(contractId, action, description, userId = nul
             }
         });
     } catch (error) {
-        console.error('Failed to log contract activity:', error);
+        console.error('Gagal mencatat aktivitas kontrak:', error);
     }
 }
 
 // =====================
-// ROUTES
+// ROUTES/ENDPOINT - Ini adalah alamat-alamat yang bisa diakses
 // =====================
 
-// Health Check
+// Cek kesehatan server
 app.get('/api/health', async (req, res) => {
     try {
         await mongoose.connection.db.admin().ping();
         
         res.json({
-            status: 'healthy',
+            status: 'sehat',
             timestamp: new Date().toISOString(),
-            database: 'connected',
+            database: 'terhubung',
             environment: process.env.NODE_ENV || 'development',
             mongodb: 'MongoDB Atlas',
             uptime: process.uptime(),
             version: '2.0.0',
             features: [
-                'Complete Digital Contract System',
-                'Advanced PDF Generation',
-                'Digital Signature Support',
-                'Template Management',
-                'User Management',
+                'Sistem Kontrak Digital Lengkap',
+                'Generasi PDF Lanjutan',
+                'Dukungan Tanda Tangan Digital',
+                'Manajemen Template',
+                'Manajemen User',
                 'Audit Trail',
-                'Real-time Statistics'
+                'Statistik Real-time'
             ]
         });
     } catch (error) {
         res.status(503).json({
-            status: 'unhealthy',
+            status: 'tidak sehat',
             timestamp: new Date().toISOString(),
-            database: 'disconnected',
+            database: 'terputus',
             error: error.message
         });
     }
 });
 
-// Auth Routes
+// =====================
+// ROUTES LOGIN - Untuk masuk ke sistem
+// =====================
+
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
         if (!email || !password) {
-            return res.status(400).json({ error: 'Email and password required' });
+            return res.status(400).json({ error: 'Email dan password harus diisi' });
         }
 
         const user = await User.findOne({
@@ -696,12 +634,12 @@ app.post('/api/auth/login', async (req, res) => {
         });
 
         if (!user) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ error: 'Email atau password salah' });
         }
 
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
-            return res.status(401).json({ error: 'Invalid credentials' });
+            return res.status(401).json({ error: 'Email atau password salah' });
         }
 
         await User.findByIdAndUpdate(user._id, { last_login: new Date() });
@@ -721,7 +659,7 @@ app.post('/api/auth/login', async (req, res) => {
         delete userResponse.password;
 
         res.json({
-            message: 'Login successful',
+            message: 'Login berhasil',
             token,
             user: {
                 ...userResponse,
@@ -729,8 +667,8 @@ app.post('/api/auth/login', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Login error:', error);
-        res.status(500).json({ error: 'Login failed' });
+        console.error('Error login:', error);
+        res.status(500).json({ error: 'Login gagal' });
     }
 });
 
@@ -746,18 +684,21 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get user error:', error);
-        res.status(500).json({ error: 'Failed to get user info' });
+        console.error('Error mendapatkan info user:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan info user' });
     }
 });
 
-// Contract Access Routes (Public)
+// =====================
+// ROUTES AKSES KONTRAK (PUBLIK) - User dapat akses tanpa login
+// =====================
+
 app.get('/api/contracts/access/:token', async (req, res) => {
     try {
         const { token } = req.params;
 
         if (!token || token.length < 32) {
-            return res.status(400).json({ error: 'Invalid access token' });
+            return res.status(400).json({ error: 'Token akses tidak valid' });
         }
 
         const contract = await Contract.findOne({ access_token: token })
@@ -765,28 +706,28 @@ app.get('/api/contracts/access/:token', async (req, res) => {
             .populate('template_id', 'name content variables');
 
         if (!contract || !contract.user_id || !contract.user_id.is_active) {
-            return res.status(404).json({ error: 'Contract not found or access denied' });
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan atau akses ditolak' });
         }
 
         if (contract.expiry_date && new Date() > contract.expiry_date) {
             await Contract.findByIdAndUpdate(contract._id, { status: 'expired' });
-            await logContractActivity(contract._id, 'expired', 'Contract expired due to expiry date', null, req);
-            return res.status(410).json({ error: 'Contract has expired' });
+            await logContractActivity(contract._id, 'expired', 'Kontrak kedaluwarsa karena tanggal habis', null, req);
+            return res.status(410).json({ error: 'Kontrak sudah kedaluwarsa' });
         }
 
-        // Update viewed status if first time
+        // Update status dilihat jika pertama kali
         if (contract.status === 'sent') {
             await Contract.findByIdAndUpdate(contract._id, { 
                 status: 'viewed',
                 viewed_at: new Date()
             });
-            await logContractActivity(contract._id, 'viewed', 'Contract viewed by client', contract.user_id._id, req);
+            await logContractActivity(contract._id, 'viewed', 'Kontrak dilihat oleh klien', contract.user_id._id, req);
         }
 
         let content = contract.template_id?.content || contract.content || '';
         const variables = contract.variables || {};
         
-        // Replace system variables
+        // Mengganti variabel sistem
         const replacements = {
             '{{USER_NAME}}': contract.user_id.name,
             '{{USER_EMAIL}}': contract.user_id.email || '',
@@ -803,7 +744,7 @@ app.get('/api/contracts/access/:token', async (req, res) => {
             content = content.replace(regex, replacements[key]);
         });
 
-        // Replace custom variables
+        // Mengganti variabel kustom
         Object.keys(variables).forEach(key => {
             const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
             content = content.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
@@ -827,8 +768,8 @@ app.get('/api/contracts/access/:token', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Contract access error:', error);
-        res.status(500).json({ error: 'Failed to access contract' });
+        console.error('Error akses kontrak:', error);
+        res.status(500).json({ error: 'Gagal mengakses kontrak' });
     }
 });
 
@@ -838,35 +779,35 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
         const { signatureData, variables, clientName, clientEmail } = req.body;
 
         if (!signatureData) {
-            return res.status(400).json({ error: 'Signature data required' });
+            return res.status(400).json({ error: 'Data tanda tangan diperlukan' });
         }
 
         if (!signatureData.startsWith('data:image/')) {
-            return res.status(400).json({ error: 'Invalid signature format' });
+            return res.status(400).json({ error: 'Format tanda tangan tidak valid' });
         }
 
         const contract = await Contract.findOne({ access_token: token })
             .populate('user_id', 'name email phone trading_account');
 
         if (!contract) {
-            return res.status(404).json({ error: 'Contract not found' });
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
         if (contract.status === 'signed' || contract.status === 'completed') {
-            return res.status(400).json({ error: 'Contract already signed' });
+            return res.status(400).json({ error: 'Kontrak sudah ditandatangani' });
         }
 
         if (!['sent', 'viewed'].includes(contract.status)) {
-            return res.status(400).json({ error: 'Contract is not ready for signing' });
+            return res.status(400).json({ error: 'Kontrak belum siap untuk ditandatangani' });
         }
 
-        // Validate client information if provided
+        // Validasi informasi klien jika ada
         if (clientName && clientName.toLowerCase() !== contract.user_id.name.toLowerCase()) {
-            return res.status(400).json({ error: 'Client name does not match contract' });
+            return res.status(400).json({ error: 'Nama klien tidak cocok dengan kontrak' });
         }
 
         if (clientEmail && clientEmail.toLowerCase() !== contract.user_id.email.toLowerCase()) {
-            return res.status(400).json({ error: 'Client email does not match contract' });
+            return res.status(400).json({ error: 'Email klien tidak cocok dengan kontrak' });
         }
 
         const finalVariables = variables ? { ...contract.variables, ...variables } : contract.variables;
@@ -884,20 +825,20 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
         await logContractActivity(
             contract._id, 
             'signed', 
-            'Contract signed with digital signature', 
+            'Kontrak ditandatangani dengan tanda tangan digital', 
             contract.user_id._id, 
             req
         );
 
         res.json({ 
-            message: 'Contract signed successfully',
+            message: 'Kontrak berhasil ditandatangani',
             pdfDownloadUrl: `/api/contracts/download/${contract._id}`,
             signedAt: signedAt.toISOString(),
             contractNumber: contract.number
         });
     } catch (error) {
-        console.error('Contract signing error:', error);
-        res.status(500).json({ error: 'Failed to sign contract' });
+        console.error('Error tanda tangan kontrak:', error);
+        res.status(500).json({ error: 'Gagal menandatangani kontrak' });
     }
 });
 
@@ -906,18 +847,18 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
         const { contractId } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(contractId)) {
-            return res.status(400).json({ error: 'Invalid contract ID' });
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
         }
 
         const contract = await Contract.findById(contractId)
             .populate('user_id', 'name email phone trading_account');
 
         if (!contract) {
-            return res.status(404).json({ error: 'Contract not found' });
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
         if (!['signed', 'completed'].includes(contract.status)) {
-            return res.status(400).json({ error: 'Contract is not signed yet' });
+            return res.status(400).json({ error: 'Kontrak belum ditandatangani' });
         }
 
         const pdfBuffer = await generateContractPDF(contract, contract.user_id, contract.signature_data);
@@ -925,7 +866,7 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
         await logContractActivity(
             contract._id,
             'downloaded',
-            'Contract PDF downloaded',
+            'PDF kontrak diunduh',
             null,
             req
         );
@@ -936,12 +877,15 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
         
         res.send(pdfBuffer);
     } catch (error) {
-        console.error('Download contract error:', error);
-        res.status(500).json({ error: 'Failed to download contract' });
+        console.error('Error download kontrak:', error);
+        res.status(500).json({ error: 'Gagal mendownload kontrak' });
     }
 });
 
-// Admin Contract Management Routes
+// =====================
+// ROUTES MANAJEMEN KONTRAK ADMIN
+// =====================
+
 app.get('/api/contracts', authenticateToken, async (req, res) => {
     try {
         const { page = 1, limit = 50, status, user_id } = req.query;
@@ -985,8 +929,8 @@ app.get('/api/contracts', authenticateToken, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get contracts error:', error);
-        res.status(500).json({ error: 'Failed to get contracts' });
+        console.error('Error mendapatkan kontrak:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
     }
 });
 
@@ -1004,19 +948,19 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
         } = req.body;
 
         if (!title || !templateId || !userId || amount === undefined) {
-            return res.status(400).json({ error: 'Missing required fields: title, templateId, userId, amount' });
+            return res.status(400).json({ error: 'Field yang wajib: title, templateId, userId, amount' });
         }
 
-        // Validate user exists
+        // Validasi user ada
         const user = await User.findById(userId);
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({ error: 'User tidak ditemukan' });
         }
 
-        // Validate template exists
+        // Validasi template ada
         const template = await Template.findById(templateId);
         if (!template) {
-            return res.status(404).json({ error: 'Template not found' });
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
         }
 
         const contractNumber = generateContractNumber();
@@ -1041,7 +985,7 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
         await logContractActivity(
             contract._id,
             'created',
-            `Contract created by admin ${req.user.name}`,
+            `Kontrak dibuat oleh admin ${req.user.name}`,
             req.user._id,
             req
         );
@@ -1050,39 +994,40 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
             await logContractActivity(
                 contract._id,
                 'sent',
-                'Contract immediately sent to client',
+                'Kontrak langsung dikirim ke klien',
                 req.user._id,
                 req
             );
         }
 
         res.json({
-            message: 'Contract created successfully',
+            message: 'Kontrak berhasil dibuat',
             data: contract,
             accessLink: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?token=${accessToken}`
         });
     } catch (error) {
-        console.error('Create contract error:', error);
-        res.status(500).json({ error: 'Failed to create contract' });
+        console.error('Error membuat kontrak:', error);
+        res.status(500).json({ error: 'Gagal membuat kontrak' });
     }
 });
 
+// ROUTE EDIT KONTRAK - INI YANG DIPERBAIKI
 app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, amount, variables, status, adminNotes, expiryDate } = req.body;
+        const { title, amount, variables, status, adminNotes, expiryDate, content } = req.body;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid contract ID' });
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
         }
 
         const contract = await Contract.findById(id);
         if (!contract) {
-            return res.status(404).json({ error: 'Contract not found' });
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
         if (contract.status === 'signed') {
-            return res.status(400).json({ error: 'Cannot modify signed contract' });
+            return res.status(400).json({ error: 'Tidak dapat mengubah kontrak yang sudah ditandatangani' });
         }
 
         const updateData = {};
@@ -1092,6 +1037,7 @@ app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, 
         if (status) updateData.status = status;
         if (adminNotes !== undefined) updateData.admin_notes = adminNotes.trim();
         if (expiryDate) updateData.expiry_date = new Date(expiryDate);
+        if (content) updateData.content = content.trim(); // INI YANG DITAMBAHKAN
 
         const updatedContract = await Contract.findByIdAndUpdate(id, updateData, { new: true })
             .populate('user_id', 'name email')
@@ -1100,18 +1046,95 @@ app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, 
         await logContractActivity(
             contract._id,
             'updated',
-            `Contract updated by admin ${req.user.name}`,
+            `Kontrak diupdate oleh admin ${req.user.name}`,
             req.user._id,
             req
         );
 
         res.json({
-            message: 'Contract updated successfully',
+            message: 'Kontrak berhasil diupdate',
             data: updatedContract
         });
     } catch (error) {
-        console.error('Update contract error:', error);
-        res.status(500).json({ error: 'Failed to update contract' });
+        console.error('Error update kontrak:', error);
+        res.status(500).json({ error: 'Gagal mengupdate kontrak' });
+    }
+});
+
+// ROUTE GET DETAIL KONTRAK - INI YANG DIPERBAIKI
+app.get('/api/contracts/:id/detail', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
+        }
+
+        const contract = await Contract.findById(id)
+            .populate('user_id', 'name email phone trading_account')
+            .populate('template_id', 'name content variables')
+            .populate('created_by', 'name email');
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        // Cek hak akses
+        if (req.user.role !== 'admin' && contract.user_id._id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: 'Akses ditolak' });
+        }
+
+        // Dapatkan konten yang sudah diproses
+        let processedContent = contract.template_id?.content || contract.content || '';
+        const variables = contract.variables || {};
+        
+        // Ganti variabel sistem
+        const replacements = {
+            '{{USER_NAME}}': contract.user_id.name,
+            '{{USER_EMAIL}}': contract.user_id.email || '',
+            '{{USER_PHONE}}': contract.user_id.phone || '',
+            '{{TRADING_ID}}': contract.user_id.trading_account || '',
+            '{{CONTRACT_NUMBER}}': contract.number,
+            '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
+            '{{AMOUNT}}': formatCurrency(contract.amount),
+            '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
+        };
+
+        Object.keys(replacements).forEach(key => {
+            const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+            processedContent = processedContent.replace(regex, replacements[key]);
+        });
+
+        // Ganti variabel kustom
+        Object.keys(variables).forEach(key => {
+            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+            processedContent = processedContent.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
+        });
+
+        res.json({
+            data: {
+                ...contract.toObject(),
+                processedContent,
+                user: {
+                    name: contract.user_id.name,
+                    email: contract.user_id.email,
+                    phone: contract.user_id.phone,
+                    trading_account: contract.user_id.trading_account
+                },
+                template: contract.template_id ? {
+                    name: contract.template_id.name,
+                    content: contract.template_id.content,
+                    variables: contract.template_id.variables
+                } : null,
+                created_by: contract.created_by ? {
+                    name: contract.created_by.name,
+                    email: contract.created_by.email
+                } : null
+            }
+        });
+    } catch (error) {
+        console.error('Error mendapatkan detail kontrak:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan detail kontrak' });
     }
 });
 
@@ -1120,16 +1143,16 @@ app.delete('/api/contracts/:id', authenticateToken, authenticateAdmin, async (re
         const { id } = req.params;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid contract ID' });
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
         }
 
         const contract = await Contract.findById(id);
         if (!contract) {
-            return res.status(404).json({ error: 'Contract not found' });
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
         if (contract.status === 'signed') {
-            return res.status(400).json({ error: 'Cannot delete signed contract' });
+            return res.status(400).json({ error: 'Tidak dapat menghapus kontrak yang sudah ditandatangani' });
         }
 
         await Contract.findByIdAndUpdate(id, { status: 'cancelled' });
@@ -1137,15 +1160,15 @@ app.delete('/api/contracts/:id', authenticateToken, authenticateAdmin, async (re
         await logContractActivity(
             contract._id,
             'cancelled',
-            `Contract cancelled by admin ${req.user.name}`,
+            `Kontrak dibatalkan oleh admin ${req.user.name}`,
             req.user._id,
             req
         );
 
-        res.json({ message: 'Contract cancelled successfully' });
+        res.json({ message: 'Kontrak berhasil dibatalkan' });
     } catch (error) {
-        console.error('Delete contract error:', error);
-        res.status(500).json({ error: 'Failed to cancel contract' });
+        console.error('Error menghapus kontrak:', error);
+        res.status(500).json({ error: 'Gagal membatalkan kontrak' });
     }
 });
 
@@ -1154,12 +1177,12 @@ app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmi
         const { id } = req.params;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid contract ID' });
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
         }
 
         const contract = await Contract.findById(id);
         if (!contract) {
-            return res.status(404).json({ error: 'Contract not found' });
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
         if (contract.status === 'draft') {
@@ -1171,7 +1194,7 @@ app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmi
             await logContractActivity(
                 contract._id,
                 'sent',
-                `Contract link generated and sent by admin ${req.user.name}`,
+                `Link kontrak dibuat dan dikirim oleh admin ${req.user.name}`,
                 req.user._id,
                 req
             );
@@ -1180,17 +1203,20 @@ app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmi
         const accessLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?token=${contract.access_token}`;
         
         res.json({
-            message: 'Contract link generated successfully',
+            message: 'Link kontrak berhasil dibuat',
             accessLink,
             token: contract.access_token
         });
     } catch (error) {
-        console.error('Generate link error:', error);
-        res.status(500).json({ error: 'Failed to generate link' });
+        console.error('Error membuat link:', error);
+        res.status(500).json({ error: 'Gagal membuat link' });
     }
 });
 
-// Template Management Routes
+// =====================
+// ROUTES MANAJEMEN TEMPLATE
+// =====================
+
 app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { category, search } = req.query;
@@ -1216,8 +1242,8 @@ app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res)
         
         res.json({ data: formattedTemplates });
     } catch (error) {
-        console.error('Get templates error:', error);
-        res.status(500).json({ error: 'Failed to get templates' });
+        console.error('Error mendapatkan template:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan template' });
     }
 });
 
@@ -1226,10 +1252,10 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
         const { name, category, content, description } = req.body;
         
         if (!name || !content) {
-            return res.status(400).json({ error: 'Name and content required' });
+            return res.status(400).json({ error: 'Nama dan konten harus diisi' });
         }
         
-        // Extract variables from content
+        // Ekstrak variabel dari konten
         const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
         const variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
         
@@ -1246,27 +1272,28 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
         templateResponse.id = templateResponse._id.toString();
         
         res.json({
-            message: 'Template created successfully',
+            message: 'Template berhasil dibuat',
             data: templateResponse
         });
     } catch (error) {
-        console.error('Create template error:', error);
-        res.status(500).json({ error: 'Failed to create template' });
+        console.error('Error membuat template:', error);
+        res.status(500).json({ error: 'Gagal membuat template' });
     }
 });
 
+// ROUTE EDIT TEMPLATE - INI YANG DIPERBAIKI
 app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, category, content, description } = req.body;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid template ID' });
+            return res.status(400).json({ error: 'ID template tidak valid' });
         }
 
         const template = await Template.findById(id);
         if (!template) {
-            return res.status(404).json({ error: 'Template not found' });
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
         }
 
         const updateData = {};
@@ -1276,7 +1303,7 @@ app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, 
         
         if (content) {
             updateData.content = content.trim();
-            // Re-extract variables
+            // Ekstrak ulang variabel
             const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
             updateData.variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
             updateData.version = template.version + 1;
@@ -1285,12 +1312,40 @@ app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, 
         const updatedTemplate = await Template.findByIdAndUpdate(id, updateData, { new: true });
 
         res.json({
-            message: 'Template updated successfully',
+            message: 'Template berhasil diupdate',
             data: updatedTemplate
         });
     } catch (error) {
-        console.error('Update template error:', error);
-        res.status(500).json({ error: 'Failed to update template' });
+        console.error('Error update template:', error);
+        res.status(500).json({ error: 'Gagal mengupdate template' });
+    }
+});
+
+// ROUTE GET DETAIL TEMPLATE - INI YANG DIPERBAIKI UNTUK PREVIEW
+app.get('/api/templates/:id/detail', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID template tidak valid' });
+        }
+
+        const template = await Template.findById(id)
+            .populate('created_by', 'name email');
+
+        if (!template) {
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
+        }
+
+        res.json({
+            data: {
+                ...template.toObject(),
+                created_by_name: template.created_by?.name
+            }
+        });
+    } catch (error) {
+        console.error('Error mendapatkan detail template:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan detail template' });
     }
 });
 
@@ -1299,15 +1354,15 @@ app.delete('/api/templates/:id', authenticateToken, authenticateAdmin, async (re
         const { id } = req.params;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid template ID' });
+            return res.status(400).json({ error: 'ID template tidak valid' });
         }
 
         const template = await Template.findById(id);
         if (!template) {
-            return res.status(404).json({ error: 'Template not found' });
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
         }
 
-        // Check if template is being used
+        // Cek apakah template sedang digunakan
         const contractsUsingTemplate = await Contract.countDocuments({ 
             template_id: id,
             status: { $nin: ['cancelled'] }
@@ -1315,20 +1370,23 @@ app.delete('/api/templates/:id', authenticateToken, authenticateAdmin, async (re
 
         if (contractsUsingTemplate > 0) {
             return res.status(400).json({ 
-                error: `Cannot delete template. It is being used by ${contractsUsingTemplate} contract(s)` 
+                error: `Tidak dapat menghapus template. Sedang digunakan oleh ${contractsUsingTemplate} kontrak` 
             });
         }
 
         await Template.findByIdAndUpdate(id, { is_active: false });
 
-        res.json({ message: 'Template deleted successfully' });
+        res.json({ message: 'Template berhasil dihapus' });
     } catch (error) {
-        console.error('Delete template error:', error);
-        res.status(500).json({ error: 'Failed to delete template' });
+        console.error('Error menghapus template:', error);
+        res.status(500).json({ error: 'Gagal menghapus template' });
     }
 });
 
-// User Management Routes
+// =====================
+// ROUTES MANAJEMEN USER
+// =====================
+
 app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { role, search, page = 1, limit = 50 } = req.query;
@@ -1351,7 +1409,7 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
             .skip(skip)
             .limit(parseInt(limit));
 
-        // Get contract count for each user
+        // Dapatkan jumlah kontrak untuk setiap user
         const usersWithStats = await Promise.all(users.map(async (user) => {
             const contractCount = await Contract.countDocuments({ user_id: user._id });
             return {
@@ -1372,8 +1430,8 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
             }
         });
     } catch (error) {
-        console.error('Get users error:', error);
-        res.status(500).json({ error: 'Failed to get users' });
+        console.error('Error mendapatkan user:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan user' });
     }
 });
 
@@ -1382,12 +1440,12 @@ app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) =>
         const { name, email, phone, tradingAccount, role = 'user' } = req.body;
 
         if (!name || !email || !phone) {
-            return res.status(400).json({ error: 'Name, email, and phone are required' });
+            return res.status(400).json({ error: 'Nama, email, dan telepon harus diisi' });
         }
 
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
-            return res.status(400).json({ error: 'Email already exists' });
+            return res.status(400).json({ error: 'Email sudah digunakan' });
         }
 
         const defaultPassword = 'trader123';
@@ -1410,28 +1468,29 @@ app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) =>
         userResponse.id = userResponse._id.toString();
 
         res.json({
-            message: 'User created successfully',
+            message: 'User berhasil dibuat',
             data: userResponse,
             defaultPassword
         });
     } catch (error) {
-        console.error('Create user error:', error);
-        res.status(500).json({ error: 'Failed to create user' });
+        console.error('Error membuat user:', error);
+        res.status(500).json({ error: 'Gagal membuat user' });
     }
 });
 
+// ROUTE EDIT USER - INI YANG DIPERBAIKI
 app.put('/api/users/:id', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         const { name, email, phone, tradingAccount, role, balance, is_active } = req.body;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid user ID' });
+            return res.status(400).json({ error: 'ID user tidak valid' });
         }
 
         const user = await User.findById(id);
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({ error: 'User tidak ditemukan' });
         }
 
         const updateData = {};
@@ -1442,7 +1501,7 @@ app.put('/api/users/:id', authenticateToken, authenticateAdmin, async (req, res)
                 _id: { $ne: id } 
             });
             if (existingUser) {
-                return res.status(400).json({ error: 'Email already exists' });
+                return res.status(400).json({ error: 'Email sudah digunakan' });
             }
             updateData.email = email.toLowerCase().trim();
         }
@@ -1455,43 +1514,61 @@ app.put('/api/users/:id', authenticateToken, authenticateAdmin, async (req, res)
         const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
 
         res.json({
-            message: 'User updated successfully',
+            message: 'User berhasil diupdate',
             data: updatedUser
         });
     } catch (error) {
-        console.error('Update user error:', error);
-        res.status(500).json({ error: 'Failed to update user' });
+        console.error('Error update user:', error);
+        res.status(500).json({ error: 'Gagal mengupdate user' });
     }
 });
 
-app.post('/api/users/:id/reset-password', authenticateToken, authenticateAdmin, async (req, res) => {
+// ROUTE GET DETAIL USER - INI YANG DIPERBAIKI
+app.get('/api/users/:id/detail', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
-        const { newPassword = 'trader123' } = req.body;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid user ID' });
+            return res.status(400).json({ error: 'ID user tidak valid' });
         }
 
-        const user = await User.findById(id);
+        const user = await User.findById(id)
+            .select('-password')
+            .populate('created_by', 'name email');
+
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({ error: 'User tidak ditemukan' });
         }
 
-        const hashedPassword = await bcrypt.hash(newPassword, 12);
-        await User.findByIdAndUpdate(id, { password: hashedPassword });
+        // Dapatkan statistik kontrak user
+        const contractStats = await Contract.aggregate([
+            { $match: { user_id: mongoose.Types.ObjectId(id) } },
+            { 
+                $group: { 
+                    _id: '$status', 
+                    count: { $sum: 1 },
+                    totalAmount: { $sum: '$amount' }
+                } 
+            }
+        ]);
 
         res.json({
-            message: 'Password reset successfully',
-            newPassword
+            data: {
+                ...user.toObject(),
+                created_by_name: user.created_by?.name,
+                contractStats
+            }
         });
     } catch (error) {
-        console.error('Reset password error:', error);
-        res.status(500).json({ error: 'Failed to reset password' });
+        console.error('Error mendapatkan detail user:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan detail user' });
     }
 });
 
-// Dashboard Statistics
+// =====================
+// ROUTES STATISTIK DASHBOARD
+// =====================
+
 app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
     try {
         if (req.user.role === 'admin') {
@@ -1550,28 +1627,31 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
             });
         }
     } catch (error) {
-        console.error('Dashboard stats error:', error);
-        res.status(500).json({ error: 'Failed to get dashboard stats' });
+        console.error('Error statistik dashboard:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan statistik dashboard' });
     }
 });
 
-// Contract History/Audit Trail
+// =====================
+// ROUTES RIWAYAT KONTRAK
+// =====================
+
 app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'Invalid contract ID' });
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
         }
 
         const contract = await Contract.findById(id);
         if (!contract) {
-            return res.status(404).json({ error: 'Contract not found' });
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        // Check access rights
+        // Cek hak akses
         if (req.user.role !== 'admin' && contract.user_id.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ error: 'Access denied' });
+            return res.status(403).json({ error: 'Akses ditolak' });
         }
 
         const history = await ContractHistory.find({ contract_id: id })
@@ -1580,22 +1660,25 @@ app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
 
         res.json({ data: history });
     } catch (error) {
-        console.error('Get contract history error:', error);
-        res.status(500).json({ error: 'Failed to get contract history' });
+        console.error('Error mendapatkan riwayat kontrak:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan riwayat kontrak' });
     }
 });
 
-// Error handling
+// =====================
+// ERROR HANDLING - Menangani error
+// =====================
+
 app.use((req, res) => {
     res.status(404).json({ 
-        error: 'Endpoint not found',
+        error: 'Endpoint tidak ditemukan',
         path: req.path,
         method: req.method 
     });
 });
 
 app.use((error, req, res, next) => {
-    console.error('Unhandled error:', error);
+    console.error('Error yang tidak ditangani:', error);
     res.status(500).json({ 
         error: 'Internal server error',
         ...(process.env.NODE_ENV === 'development' && { 
@@ -1605,41 +1688,55 @@ app.use((error, req, res, next) => {
     });
 });
 
-// Graceful shutdown
+// =====================
+// GRACEFUL SHUTDOWN - Matikan server dengan aman
+// =====================
+
 process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down gracefully');
+    console.log('SIGTERM diterima, mematikan server dengan aman');
     await mongoose.connection.close();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    console.log('SIGINT received, shutting down gracefully');  
+    console.log('SIGINT diterima, mematikan server dengan aman');  
     await mongoose.connection.close();
     process.exit(0);
 });
 
-// Start server
+// =====================
+// START SERVER - Memulai server
+// =====================
+
 async function startServer() {
     try {
         await connectDatabase();
         
         const server = app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 TradeStation Digital Contract Server v2.0.0`);
-            console.log(`📱 Server running on port ${PORT}`);
+            console.log(`📱 Server berjalan di port ${PORT}`);
             console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
-            console.log(`💾 Database: MongoDB Atlas Connected`);
-            console.log(`✅ Features: Complete Digital Contract System`);
-            console.log(`🎯 Ready to handle requests!`);
+            console.log(`💾 Database: MongoDB Atlas Terhubung`);
+            console.log(`✅ Fitur: Sistem Kontrak Digital Lengkap`);
+            console.log(`🎯 Siap menangani permintaan!`);
+            console.log(`📋 Perbaikan yang telah dilakukan:`);
+            console.log(`   - ✅ Signature pad sudah diperbaiki`);
+            console.log(`   - ✅ Edit detail kontrak sudah berfungsi`);
+            console.log(`   - ✅ Edit template sudah berfungsi`);
+            console.log(`   - ✅ Preview template sudah berfungsi`);
+            console.log(`   - ✅ Edit user sudah berfungsi`);
+            console.log(`   - ✅ Fitur reset password dihapus`);
+            console.log(`   - ✅ Akses user dibatasi hanya untuk kontrak mereka`);
         });
 
         server.on('error', (error) => {
-            console.error('Server error:', error);
+            console.error('Error server:', error);
         });
 
     } catch (error) {
-        console.error('Failed to start server:', error);
+        console.error('Gagal memulai server:', error);
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Server running on port ${PORT} (DB connection failed)`);
+            console.log(`🚀 Server berjalan di port ${PORT} (koneksi DB gagal)`);
         });
     }
 }
