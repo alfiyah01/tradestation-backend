@@ -1,23 +1,22 @@
 {
-  "name": "tradestation-kontrak-digital",
-  "version": "2.0.0",
-  "description": "Sistem kontrak digital TradeStation dengan MongoDB Atlas",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-    "install-prod": "npm install --omit=dev"
-  },
-  "dependencies": {
-    "express": "^4.18.2",
-    "mongoose": "^8.0.3",
-    "bcrypt": "^5.1.1",
-    "jsonwebtoken": "^9.0.2",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "crypto": "^1.0.1"
-  },
-  "engines": {
-    "node": ">=16.0.0"
-  }
+    "name": "tradestation-kontrak-digital",
+    "version": "2.0.0",
+    "description": "Sistem kontrak digital TradeStation dengan MongoDB Atlas",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "nodemon server.js"
+    },
+    "dependencies": {
+        "express": "^4.18.2",
+        "mongoose": "^8.0.3",
+        "bcrypt": "^5.1.1",
+        "jsonwebtoken": "^9.0.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "crypto": "^1.0.1"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    }
 }
