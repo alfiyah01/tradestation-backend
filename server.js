@@ -686,11 +686,6 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
             return res.status(404).json({ error: 'Contract not found' });
         }
 
-        const validPassword = await bcrypt.compare(password, contract.user_id.password);
-        if (!validPassword) {
-            return res.status(401).json({ error: 'Invalid password' });
-        }
-
         if (contract.status === 'signed' || contract.status === 'completed') {
             return res.status(400).json({ error: 'Contract already signed' });
         }
