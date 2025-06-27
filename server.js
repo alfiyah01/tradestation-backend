@@ -13,10 +13,19 @@ const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors({
-    origin: ['https://kontrakdigital.netlify.app', 'https://kontrakdigital.com', 'http://localhost:3000'],
+    origin: ['https://kontrakdigital.netlify.app', 'https://kontrakdigital.com', 'http://localhost:3000', 'http://127.0.0.1:3000'],
     credentials: true
 }));
 app.use(express.json({ limit: '10mb' }));
+
+// Rate limiting for API
+const rateLimit = require('express-rate-limit');
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again later.'
+});
+app.use('/api/', limiter);
 
 // MongoDB Connection
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rizalitam10:Yusrizal1993@cluster0.s0e5g5h.mongodb.net/kontrakdb?retryWrites=true&w=majority&appName=Cluster0';
@@ -29,55 +38,66 @@ const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secre
 // =====================
 
 const userSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    username: { type: String, unique: true, sparse: true },
-    password: { type: String, required: true },
-    phone: String,
-    role: { type: String, default: 'user' },
-    trading_account: String,
-    balance: { type: Number, default: 0 },
-    is_active: { type: Boolean, default: true }
+    name: { type: String, required: true, trim: true },
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    username: { type: String, unique: true, sparse: true, trim: true },
+    password: { type: String, required: true, minlength: 6 },
+    phone: { type: String, trim: true },
+    role: { type: String, default: 'user', enum: ['user', 'admin'] },
+    trading_account: { type: String, trim: true },
+    balance: { type: Number, default: 0, min: 0 },
+    is_active: { type: Boolean, default: true },
+    last_login: { type: Date },
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
 }, {
     timestamps: true
 });
 
 const templateSchema = new mongoose.Schema({
-    name: { type: String, required: true },
-    category: { type: String, default: 'general' },
+    name: { type: String, required: true, trim: true },
+    category: { type: String, default: 'general', trim: true },
     content: { type: String, required: true },
-    variables: [String],
+    variables: [{ type: String, trim: true }],
     is_active: { type: Boolean, default: true },
-    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    description: String // Tambahan untuk deskripsi template
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    description: { type: String, trim: true }
 }, {
     timestamps: true
 });
 
 const contractSchema = new mongoose.Schema({
-    title: { type: String, required: true },
-    number: { type: String, required: true, unique: true },
+    title: { type: String, required: true, trim: true },
+    number: { type: String, required: true, unique: true, trim: true },
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     template_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Template' },
-    content: String,
-    amount: { type: Number, default: 0 },
-    status: { type: String, default: 'draft' },
+    content: { type: String },
+    amount: { type: Number, default: 0, min: 0 },
+    status: { 
+        type: String, 
+        default: 'draft',
+        enum: ['draft', 'sent', 'signed', 'completed', 'expired', 'cancelled']
+    },
     variables: { type: Object, default: {} },
-    signature_data: String,
-    signed_at: Date,
-    expiry_date: Date,
-    admin_notes: String,
+    signature_data: { type: String },
+    signed_at: { type: Date },
+    expiry_date: { type: Date },
+    admin_notes: { type: String, trim: true },
     access_token: { type: String, unique: true },
-    pdf_file_path: String // Path untuk file PDF yang sudah ditandatangani
+    pdf_file_path: { type: String },
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    sent_at: { type: Date },
+    reminder_sent: { type: Number, default: 0 }
 }, {
     timestamps: true
 });
 
 const contractHistorySchema = new mongoose.Schema({
     contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract', required: true },
-    action: { type: String, required: true },
-    description: String,
-    performed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    action: { type: String, required: true, trim: true },
+    description: { type: String, trim: true },
+    performed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    ip_address: { type: String },
+    user_agent: { type: String }
 }, {
     timestamps: true
 });
@@ -99,6 +119,9 @@ async function connectDatabase() {
         await mongoose.connect(MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
+            maxPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
         });
         
         console.log('✅ MongoDB Atlas connected successfully!');
@@ -117,7 +140,7 @@ async function setupInitialData() {
         // Create admin user
         const adminExists = await User.findOne({ email: 'admin@tradestation.com' });
         if (!adminExists) {
-            const hashedPassword = await bcrypt.hash('admin123', 10);
+            const hashedPassword = await bcrypt.hash('admin123', 12);
             await User.create({
                 name: 'Admin TradeStation',
                 email: 'admin@tradestation.com',
@@ -134,7 +157,7 @@ async function setupInitialData() {
         // Create sample user
         const userExists = await User.findOne({ email: 'hermanzal@trader.com' });
         if (!userExists) {
-            const hashedPassword = await bcrypt.hash('trader123', 10);
+            const hashedPassword = await bcrypt.hash('trader123', 12);
             await User.create({
                 name: 'Herman Zaldivar',
                 email: 'hermanzal@trader.com',
@@ -347,11 +370,20 @@ function generateContractNumber() {
     return `TSC${year}${month}${day}${random}`;
 }
 
-// Function untuk generate PDF
+// Function untuk generate PDF dengan perbaikan
 async function generateContractPDF(contract, user, signatureData) {
     return new Promise((resolve, reject) => {
         try {
-            const doc = new PDFDocument({ margin: 50 });
+            const doc = new PDFDocument({ 
+                margin: 50,
+                info: {
+                    Title: `Kontrak ${contract.number}`,
+                    Author: 'TradeStation Kontrak Digital',
+                    Subject: contract.title,
+                    Creator: 'TradeStation System'
+                }
+            });
+            
             let buffers = [];
             
             doc.on('data', buffers.push.bind(buffers));
@@ -359,41 +391,111 @@ async function generateContractPDF(contract, user, signatureData) {
                 const pdfData = Buffer.concat(buffers);
                 resolve(pdfData);
             });
+            doc.on('error', (error) => {
+                reject(error);
+            });
 
-            // Header
-            doc.fontSize(16).font('Helvetica-Bold').text('KONTRAK DIGITAL TRADESTATION', { align: 'center' });
-            doc.moveDown(0.5);
+            // Header dengan styling yang lebih baik
+            doc.fontSize(18).font('Helvetica-Bold').text('KONTRAK DIGITAL TRADESTATION', { align: 'center' });
+            doc.moveDown(0.3);
             doc.fontSize(12).font('Helvetica').text(`Nomor Kontrak: ${contract.number}`, { align: 'center' });
+            doc.fontSize(10).text(`Dibuat pada: ${new Date(contract.createdAt).toLocaleDateString('id-ID')}`, { align: 'center' });
+            
+            // Line separator
             doc.moveDown(1);
+            doc.strokeColor('#000000').lineWidth(1).moveTo(50, doc.y).lineTo(550, doc.y).stroke();
+            doc.moveDown(0.5);
 
-            // Content
-            const content = contract.content.replace(/#{1,3}\s?/g, '').replace(/\*\*(.*?)\*\*/g, '$1');
+            // Content dengan formatting yang lebih baik
+            let content = contract.content || '';
+            
+            // Replace variables dengan nilai yang sesuai
+            content = content.replace(/\{\{USER_NAME\}\}/g, user.name);
+            content = content.replace(/\{\{USER_EMAIL\}\}/g, user.email || '');
+            content = content.replace(/\{\{USER_PHONE\}\}/g, user.phone || '');
+            content = content.replace(/\{\{TRADING_ID\}\}/g, user.trading_account || '');
+            content = content.replace(/\{\{CONTRACT_NUMBER\}\}/g, contract.number);
+            content = content.replace(/\{\{CONTRACT_DATE\}\}/g, new Date(contract.createdAt).toLocaleDateString('id-ID'));
+            content = content.replace(/\{\{AMOUNT\}\}/g, new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR',
+                minimumFractionDigits: 0
+            }).format(contract.amount));
+
+            // Replace custom variables
+            Object.keys(contract.variables || {}).forEach(key => {
+                const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+                content = content.replace(regex, contract.variables[key] || '');
+            });
+
+            // Process content line by line
             const lines = content.split('\n');
             
             lines.forEach(line => {
-                if (line.trim()) {
-                    if (line.includes('##') || line.includes('Pasal')) {
-                        doc.fontSize(12).font('Helvetica-Bold').text(line.trim());
+                line = line.trim();
+                if (line) {
+                    // Check if it's a header
+                    if (line.startsWith('# ')) {
+                        doc.fontSize(14).font('Helvetica-Bold').text(line.substring(2), { align: 'center' });
+                        doc.moveDown(0.5);
+                    } else if (line.startsWith('## ')) {
+                        doc.fontSize(12).font('Helvetica-Bold').text(line.substring(3));
                         doc.moveDown(0.3);
-                    } else {
-                        doc.fontSize(10).font('Helvetica').text(line.trim());
+                    } else if (line.startsWith('### ')) {
+                        doc.fontSize(11).font('Helvetica-Bold').text(line.substring(4));
                         doc.moveDown(0.2);
+                    } else {
+                        // Regular text
+                        const processedLine = line.replace(/\*\*(.*?)\*\*/g, '$1'); // Remove markdown bold
+                        doc.fontSize(10).font('Helvetica').text(processedLine, { 
+                            align: 'justify',
+                            lineGap: 2
+                        });
+                        doc.moveDown(0.2);
+                    }
+                    
+                    // Check if we need a new page
+                    if (doc.y > 720) {
+                        doc.addPage();
                     }
                 }
             });
 
-            // Tanda tangan
+            // Tanda tangan section
             doc.moveDown(2);
-            doc.fontSize(12).font('Helvetica-Bold').text('Tanda Tangan Digital:', { align: 'left' });
+            
+            // Line separator before signature
+            doc.strokeColor('#000000').lineWidth(0.5).moveTo(50, doc.y).lineTo(550, doc.y).stroke();
             doc.moveDown(0.5);
             
-            if (signatureData) {
-                // Signature placeholder (dalam implementasi nyata, decode base64 dan insert image)
-                doc.fontSize(10).font('Helvetica').text('[ Tanda Tangan Digital Terverifikasi ]');
-                doc.text(`Ditandatangani oleh: ${user.name}`);
-                doc.text(`Tanggal: ${new Date().toLocaleDateString('id-ID')}`);
-                doc.text(`Trading ID: ${user.trading_account}`);
+            doc.fontSize(12).font('Helvetica-Bold').text('TANDA TANGAN DIGITAL', { align: 'center' });
+            doc.moveDown(0.5);
+            
+            if (signatureData && contract.signed_at) {
+                // Signature info box
+                doc.rect(50, doc.y, 500, 100).stroke();
+                doc.moveDown(0.5);
+                
+                doc.fontSize(10).font('Helvetica-Bold').text('✓ KONTRAK TELAH DITANDATANGANI SECARA DIGITAL', { align: 'center', color: 'green' });
+                doc.moveDown(0.3);
+                doc.font('Helvetica').fillColor('black').text(`Ditandatangani oleh: ${user.name}`, { align: 'center' });
+                doc.text(`Trading ID: ${user.trading_account}`, { align: 'center' });
+                doc.text(`Tanggal & Waktu: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, { align: 'center' });
+                doc.text(`Token Verifikasi: ${contract.access_token.substring(0, 16)}...`, { align: 'center' });
+                
+                // Add a simple signature representation
+                doc.moveDown(0.5);
+                doc.fontSize(8).text('[ Tanda Tangan Digital Terenkripsi ]', { align: 'center', oblique: true });
+            } else {
+                doc.fontSize(10).font('Helvetica').text('Menunggu tanda tangan digital...', { align: 'center', oblique: true });
             }
+
+            // Footer
+            doc.moveDown(2);
+            doc.fontSize(8).font('Helvetica').fillColor('gray').text(
+                `Dokumen ini dibuat secara digital oleh TradeStation Kontrak Digital System pada ${new Date().toLocaleString('id-ID')}`,
+                { align: 'center' }
+            );
 
             doc.end();
         } catch (error) {
@@ -419,14 +521,17 @@ const authenticateToken = async (req, res, next) => {
         const user = await User.findById(decoded.userId).where('is_active').equals(true);
         
         if (!user) {
-            return res.status(401).json({ error: 'Invalid token' });
+            return res.status(401).json({ error: 'Invalid token or user not found' });
         }
+
+        // Update last login
+        await User.findByIdAndUpdate(user._id, { last_login: new Date() });
 
         req.user = user;
         next();
     } catch (error) {
         console.error('Token verification error:', error);
-        return res.status(403).json({ error: 'Invalid token' });
+        return res.status(403).json({ error: 'Invalid or expired token' });
     }
 };
 
@@ -435,6 +540,26 @@ const authenticateAdmin = async (req, res, next) => {
         return res.status(403).json({ error: 'Admin access required' });
     }
     next();
+};
+
+// Logging middleware untuk audit trail
+const logActivity = (action) => {
+    return async (req, res, next) => {
+        try {
+            const originalSend = res.send;
+            res.send = function(data) {
+                // Log successful operations
+                if (res.statusCode < 400 && req.user) {
+                    // You can implement activity logging here
+                    console.log(`Activity: ${action} by ${req.user.email} at ${new Date().toISOString()}`);
+                }
+                originalSend.call(this, data);
+            };
+            next();
+        } catch (error) {
+            next();
+        }
+    };
 };
 
 // =====================
@@ -450,7 +575,9 @@ app.get('/api/health', async (req, res) => {
             timestamp: new Date().toISOString(),
             database: 'connected',
             environment: process.env.NODE_ENV || 'development',
-            mongodb: 'MongoDB Atlas'
+            mongodb: 'MongoDB Atlas',
+            uptime: process.uptime(),
+            memory: process.memoryUsage()
         });
     } catch (error) {
         res.status(503).json({
@@ -470,12 +597,17 @@ app.post('/api/auth/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        // Input validation
         if (!email || !password) {
             return res.status(400).json({ error: 'Email and password required' });
         }
 
+        // Rate limiting untuk login attempts
         const user = await User.findOne({
-            $or: [{ email }, { username: email }],
+            $or: [
+                { email: email.toLowerCase() }, 
+                { username: email.toLowerCase() }
+            ],
             is_active: true
         });
 
@@ -488,8 +620,16 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
 
+        // Update last login
+        await User.findByIdAndUpdate(user._id, { last_login: new Date() });
+
         const token = jwt.sign(
-            { userId: user._id, email: user.email, role: user.role },
+            { 
+                userId: user._id, 
+                email: user.email, 
+                role: user.role,
+                iat: Math.floor(Date.now() / 1000)
+            },
             JWT_SECRET,
             { expiresIn: '7d' }
         );
@@ -532,7 +672,7 @@ app.post('/api/auth/logout', authenticateToken, async (req, res) => {
     res.json({ message: 'Logout successful' });
 });
 
-// NEW: Change Admin Password
+// Change Admin Password dengan perbaikan
 app.post('/api/auth/change-password', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { currentPassword, newPassword } = req.body;
@@ -550,7 +690,7 @@ app.post('/api/auth/change-password', authenticateToken, authenticateAdmin, asyn
             return res.status(400).json({ error: 'New password must be at least 6 characters' });
         }
 
-        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+        const hashedNewPassword = await bcrypt.hash(newPassword, 12);
         await User.findByIdAndUpdate(req.user._id, { password: hashedNewPassword });
 
         res.json({ message: 'Password changed successfully' });
@@ -564,41 +704,49 @@ app.post('/api/auth/change-password', authenticateToken, authenticateAdmin, asyn
 // USER MANAGEMENT ROUTES
 // =====================
 
-// NEW: Add User
-app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) => {
+// Add User dengan validasi yang lebih baik
+app.post('/api/users', authenticateToken, authenticateAdmin, logActivity('CREATE_USER'), async (req, res) => {
     try {
         const { name, email, phone, tradingAccount } = req.body;
 
+        // Input validation
         if (!name || !email || !phone) {
             return res.status(400).json({ error: 'Name, email, and phone are required' });
         }
 
+        // Email validation
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
         // Check if email already exists
-        const existingUser = await User.findOne({ email });
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
             return res.status(400).json({ error: 'Email already exists' });
         }
 
         // Generate default password
         const defaultPassword = 'trader123';
-        const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+        const hashedPassword = await bcrypt.hash(defaultPassword, 12);
 
         // Generate trading account if not provided
         const finalTradingAccount = tradingAccount || `TRD${Date.now().toString().slice(-6)}`;
 
         const user = await User.create({
-            name,
-            email,
-            phone,
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            phone: phone.trim(),
             password: hashedPassword,
             role: 'user',
             trading_account: finalTradingAccount,
-            balance: 0
+            balance: 0,
+            created_by: req.user._id
         });
 
         const userResponse = user.toObject();
         delete userResponse.password;
-        userResponse.id = userResponse._id.toString(); // Add id field for frontend compatibility
+        userResponse.id = userResponse._id.toString();
 
         res.json({
             message: 'User created successfully',
@@ -612,27 +760,37 @@ app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) =>
 });
 
 // =====================
-// CONTRACT ACCESS ROUTES
+// CONTRACT ACCESS ROUTES (PERBAIKAN UTAMA)
 // =====================
 
 app.get('/api/contracts/access/:token', async (req, res) => {
     try {
         const { token } = req.params;
 
+        if (!token || token.length < 32) {
+            return res.status(400).json({ error: 'Invalid access token' });
+        }
+
         const contract = await Contract.findOne({ access_token: token })
             .populate('user_id', 'name email phone trading_account is_active')
-            .populate('template_id', 'name content');
+            .populate('template_id', 'name content variables');
 
-        if (!contract || !contract.user_id.is_active) {
+        if (!contract || !contract.user_id || !contract.user_id.is_active) {
             return res.status(404).json({ error: 'Contract not found or access denied' });
+        }
+
+        // Check if contract is expired
+        if (contract.expiry_date && new Date() > contract.expiry_date) {
+            await Contract.findByIdAndUpdate(contract._id, { status: 'expired' });
+            return res.status(410).json({ error: 'Contract has expired' });
         }
 
         let content = contract.template_id?.content || contract.content || '';
         const variables = contract.variables || {};
         
-        // Replace variables
+        // Replace system variables
         content = content.replace(/\{\{USER_NAME\}\}/g, contract.user_id.name);
-        content = content.replace(/\{\{USER_EMAIL\}\}/g, contract.user_id.email);
+        content = content.replace(/\{\{USER_EMAIL\}\}/g, contract.user_id.email || '');
         content = content.replace(/\{\{USER_PHONE\}\}/g, contract.user_id.phone || '');
         content = content.replace(/\{\{TRADING_ID\}\}/g, contract.user_id.trading_account || '');
         content = content.replace(/\{\{CONTRACT_NUMBER\}\}/g, contract.number);
@@ -646,7 +804,7 @@ app.get('/api/contracts/access/:token', async (req, res) => {
         // Replace custom variables
         Object.keys(variables).forEach(key => {
             const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-            content = content.replace(regex, variables[key]);
+            content = content.replace(regex, variables[key] || '');
         });
 
         res.json({
@@ -659,9 +817,10 @@ app.get('/api/contracts/access/:token', async (req, res) => {
                     phone: contract.user_id.phone,
                     trading_account: contract.user_id.trading_account
                 },
-                template: {
-                    name: contract.template_id?.name
-                }
+                template: contract.template_id ? {
+                    name: contract.template_id.name,
+                    variables: contract.template_id.variables
+                } : null
             }
         });
     } catch (error) {
@@ -670,17 +829,58 @@ app.get('/api/contracts/access/:token', async (req, res) => {
     }
 });
 
+// PERBAIKAN UTAMA: Endpoint untuk update variabel kontrak
+app.put('/api/contracts/access/:token/variables', async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { variables } = req.body;
+
+        if (!token || !variables || typeof variables !== 'object') {
+            return res.status(400).json({ error: 'Invalid token or variables' });
+        }
+
+        const contract = await Contract.findOne({ access_token: token });
+        if (!contract) {
+            return res.status(404).json({ error: 'Contract not found' });
+        }
+
+        if (contract.status !== 'sent') {
+            return res.status(400).json({ error: 'Contract cannot be modified' });
+        }
+
+        // Merge dengan variabel yang sudah ada
+        const updatedVariables = { ...contract.variables, ...variables };
+
+        await Contract.findByIdAndUpdate(contract._id, {
+            variables: updatedVariables
+        });
+
+        res.json({ 
+            message: 'Variables updated successfully',
+            variables: updatedVariables
+        });
+    } catch (error) {
+        console.error('Update variables error:', error);
+        res.status(500).json({ error: 'Failed to update variables' });
+    }
+});
+
 app.post('/api/contracts/access/:token/sign', async (req, res) => {
     try {
         const { token } = req.params;
-        const { signatureData, password } = req.body;
+        const { signatureData, variables } = req.body;
 
-        if (!signatureData || !password) {
-            return res.status(400).json({ error: 'Signature and password required' });
+        if (!signatureData) {
+            return res.status(400).json({ error: 'Signature data required' });
+        }
+
+        // Validate signature data (basic validation)
+        if (!signatureData.startsWith('data:image/')) {
+            return res.status(400).json({ error: 'Invalid signature format' });
         }
 
         const contract = await Contract.findOne({ access_token: token })
-            .populate('user_id', 'password name email phone trading_account');
+            .populate('user_id', 'name email phone trading_account');
 
         if (!contract) {
             return res.status(404).json({ error: 'Contract not found' });
@@ -690,27 +890,47 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
             return res.status(400).json({ error: 'Contract already signed' });
         }
 
+        if (contract.status !== 'sent') {
+            return res.status(400).json({ error: 'Contract is not ready for signing' });
+        }
+
+        // Check if contract is expired
+        if (contract.expiry_date && new Date() > contract.expiry_date) {
+            await Contract.findByIdAndUpdate(contract._id, { status: 'expired' });
+            return res.status(410).json({ error: 'Contract has expired' });
+        }
+
+        // Update variables if provided
+        const finalVariables = variables ? { ...contract.variables, ...variables } : contract.variables;
+
         // Generate PDF
-        const pdfBuffer = await generateContractPDF(contract, contract.user_id, signatureData);
+        const updatedContract = { ...contract.toObject(), variables: finalVariables };
+        const pdfBuffer = await generateContractPDF(updatedContract, contract.user_id, signatureData);
         const pdfPath = `contracts/${contract.number}_signed.pdf`;
 
+        // Update contract
         await Contract.findByIdAndUpdate(contract._id, {
             status: 'signed',
             signature_data: signatureData,
             signed_at: new Date(),
-            pdf_file_path: pdfPath
+            pdf_file_path: pdfPath,
+            variables: finalVariables
         });
 
+        // Log activity
         await ContractHistory.create({
             contract_id: contract._id,
             action: 'signed',
-            description: 'Contract signed by user',
-            performed_by: contract.user_id._id
+            description: 'Contract signed by user with digital signature',
+            performed_by: contract.user_id._id,
+            ip_address: req.ip,
+            user_agent: req.get('User-Agent')
         });
 
         res.json({ 
             message: 'Contract signed successfully',
-            pdfDownloadUrl: `/api/contracts/download/${contract._id}`
+            pdfDownloadUrl: `/api/contracts/download/${contract._id}`,
+            signedAt: new Date().toISOString()
         });
     } catch (error) {
         console.error('Contract signing error:', error);
@@ -718,23 +938,35 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
     }
 });
 
-// NEW: Download PDF Contract
+// Download PDF Contract dengan perbaikan
 app.get('/api/contracts/download/:contractId', async (req, res) => {
     try {
         const { contractId } = req.params;
 
+        if (!mongoose.Types.ObjectId.isValid(contractId)) {
+            return res.status(400).json({ error: 'Invalid contract ID' });
+        }
+
         const contract = await Contract.findById(contractId)
             .populate('user_id', 'name email phone trading_account');
 
-        if (!contract || contract.status !== 'signed') {
-            return res.status(404).json({ error: 'Signed contract not found' });
+        if (!contract) {
+            return res.status(404).json({ error: 'Contract not found' });
+        }
+
+        if (contract.status !== 'signed' && contract.status !== 'completed') {
+            return res.status(400).json({ error: 'Contract is not signed yet' });
         }
 
         // Generate PDF on demand
         const pdfBuffer = await generateContractPDF(contract, contract.user_id, contract.signature_data);
 
+        // Set proper headers
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="Kontrak_${contract.number}.pdf"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.setHeader('Cache-Control', 'no-cache');
+        
         res.send(pdfBuffer);
     } catch (error) {
         console.error('Download contract error:', error);
@@ -748,38 +980,66 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
 
 app.get('/api/contracts', authenticateToken, async (req, res) => {
     try {
-        if (req.user.role === 'admin') {
-            const contracts = await Contract.find()
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
+
+        let query = {};
+        let sort = { createdAt: -1 };
+
+        // Filter by user if not admin
+        if (req.user.role !== 'admin') {
+            query.user_id = req.user._id;
+        }
+
+        // Add filters
+        if (req.query.status) {
+            query.status = req.query.status;
+        }
+        if (req.query.search) {
+            query.$or = [
+                { title: { $regex: req.query.search, $options: 'i' } },
+                { number: { $regex: req.query.search, $options: 'i' } }
+            ];
+        }
+
+        const [contracts, total] = await Promise.all([
+            Contract.find(query)
                 .populate('user_id', 'name email phone trading_account')
                 .populate('template_id', 'name')
-                .sort({ createdAt: -1 });
-            
-            const formattedContracts = contracts.map(contract => ({
-                ...contract.toObject(),
-                user_name: contract.user_id?.name,
-                user_email: contract.user_id?.email,
-                user_phone: contract.user_id?.phone,
-                trading_account: contract.user_id?.trading_account,
-                template_name: contract.template_id?.name,
-                created_at: contract.createdAt,
-                updated_at: contract.updatedAt
-            }));
-            
-            res.json({ data: formattedContracts });
-        } else {
-            const contracts = await Contract.find({ user_id: req.user._id })
-                .populate('template_id', 'name content')
-                .sort({ createdAt: -1 });
-                
-            res.json({ data: contracts });
-        }
+                .sort(sort)
+                .skip(skip)
+                .limit(limit),
+            Contract.countDocuments(query)
+        ]);
+        
+        const formattedContracts = contracts.map(contract => ({
+            ...contract.toObject(),
+            user_name: contract.user_id?.name,
+            user_email: contract.user_id?.email,
+            user_phone: contract.user_id?.phone,
+            trading_account: contract.user_id?.trading_account,
+            template_name: contract.template_id?.name,
+            created_at: contract.createdAt,
+            updated_at: contract.updatedAt
+        }));
+        
+        res.json({ 
+            data: formattedContracts,
+            pagination: {
+                current: page,
+                total: Math.ceil(total / limit),
+                count: contracts.length,
+                totalRecords: total
+            }
+        });
     } catch (error) {
         console.error('Get contracts error:', error);
         res.status(500).json({ error: 'Failed to get contracts' });
     }
 });
 
-app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res) => {
+app.post('/api/contracts', authenticateToken, authenticateAdmin, logActivity('CREATE_CONTRACT'), async (req, res) => {
     try {
         const {
             title,
@@ -792,8 +1052,25 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
             sendImmediately
         } = req.body;
 
-        if (!title || !templateId || !userId || !amount) {
-            return res.status(400).json({ error: 'Missing required fields' });
+        // Input validation
+        if (!title || !templateId || !userId || amount === undefined) {
+            return res.status(400).json({ error: 'Missing required fields: title, templateId, userId, amount' });
+        }
+
+        if (amount < 0) {
+            return res.status(400).json({ error: 'Amount cannot be negative' });
+        }
+
+        // Validate user exists
+        const user = await User.findById(userId).where('is_active').equals(true);
+        if (!user) {
+            return res.status(400).json({ error: 'User not found or inactive' });
+        }
+
+        // Validate template exists
+        const template = await Template.findById(templateId).where('is_active').equals(true);
+        if (!template) {
+            return res.status(400).json({ error: 'Template not found or inactive' });
         }
 
         const contractNumber = generateContractNumber();
@@ -801,23 +1078,28 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
         const status = sendImmediately ? 'sent' : 'draft';
 
         const contract = await Contract.create({
-            title,
+            title: title.trim(),
             number: contractNumber,
             user_id: userId,
             template_id: templateId,
-            amount,
+            amount: parseFloat(amount),
             status,
             variables: variables || {},
-            expiry_date: expiryDate,
-            admin_notes: adminNotes,
-            access_token: accessToken
+            expiry_date: expiryDate ? new Date(expiryDate) : null,
+            admin_notes: adminNotes?.trim(),
+            access_token: accessToken,
+            created_by: req.user._id,
+            sent_at: sendImmediately ? new Date() : null
         });
 
+        // Log activity
         await ContractHistory.create({
             contract_id: contract._id,
             action: 'created',
             description: `Contract created by admin${sendImmediately ? ' and sent to user' : ''}`,
-            performed_by: req.user._id
+            performed_by: req.user._id,
+            ip_address: req.ip,
+            user_agent: req.get('User-Agent')
         });
 
         res.json({
@@ -831,20 +1113,32 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
     }
 });
 
-// NEW: Generate Contract Link
+// Generate Contract Link dengan perbaikan
 app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
         
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid contract ID' });
+        }
+
         const contract = await Contract.findById(id);
         if (!contract) {
             return res.status(404).json({ error: 'Contract not found' });
         }
 
+        // Update status to sent if it's draft
+        if (contract.status === 'draft') {
+            await Contract.findByIdAndUpdate(id, { 
+                status: 'sent',
+                sent_at: new Date()
+            });
+        }
+
         const accessLink = `${process.env.FRONTEND_URL || 'https://kontrakdigital.com'}/?token=${contract.access_token}`;
         
         res.json({
-            message: 'Contract link generated',
+            message: 'Contract link generated successfully',
             accessLink,
             token: contract.access_token
         });
@@ -856,7 +1150,7 @@ app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmi
 
 app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
-        const templates = await Template.find()
+        const templates = await Template.find({ is_active: true })
             .populate('created_by', 'name')
             .sort({ createdAt: -1 });
             
@@ -864,7 +1158,7 @@ app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res)
             const templateObj = template.toObject();
             return {
                 ...templateObj,
-                id: templateObj._id.toString(), // Add id field for frontend compatibility
+                id: templateObj._id.toString(),
                 created_by_name: template.created_by?.name
             };
         });
@@ -876,22 +1170,31 @@ app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res)
     }
 });
 
-app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res) => {
+app.post('/api/templates', authenticateToken, authenticateAdmin, logActivity('CREATE_TEMPLATE'), async (req, res) => {
     try {
         const { name, category, content, description } = req.body;
         
         if (!name || !content) {
             return res.status(400).json({ error: 'Name and content required' });
         }
+
+        if (name.length < 3) {
+            return res.status(400).json({ error: 'Template name must be at least 3 characters' });
+        }
+
+        if (content.length < 10) {
+            return res.status(400).json({ error: 'Template content must be at least 10 characters' });
+        }
         
+        // Extract variables from content
         const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
         const variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
         
         const template = await Template.create({
-            name,
-            category: category || 'general',
-            content,
-            description,
+            name: name.trim(),
+            category: (category || 'general').trim(),
+            content: content.trim(),
+            description: description?.trim(),
             variables,
             created_by: req.user._id
         });
@@ -909,20 +1212,31 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
     }
 });
 
-app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+app.put('/api/templates/:id', authenticateToken, authenticateAdmin, logActivity('UPDATE_TEMPLATE'), async (req, res) => {
     try {
         const { name, category, content, description } = req.body;
         
         if (!name || !content) {
             return res.status(400).json({ error: 'Name and content required' });
         }
+
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({ error: 'Invalid template ID' });
+        }
         
+        // Extract variables from content
         const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
         const variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
         
         const template = await Template.findByIdAndUpdate(
             req.params.id,
-            { name, category, content, description, variables },
+            { 
+                name: name.trim(), 
+                category: (category || 'general').trim(), 
+                content: content.trim(), 
+                description: description?.trim(), 
+                variables 
+            },
             { new: true }
         );
         
@@ -958,7 +1272,7 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
             {
                 $addFields: {
                     contract_count: { $size: '$contracts' },
-                    id: { $toString: '$_id' } // Add id field for frontend compatibility
+                    id: { $toString: '$_id' }
                 }
             },
             {
@@ -980,22 +1294,25 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
 app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
     try {
         if (req.user.role === 'admin') {
-            const totalContracts = await Contract.countDocuments();
-            const pendingSignatures = await Contract.countDocuments({ status: 'sent' });
-            const completedContracts = await Contract.countDocuments({ 
-                status: { $in: ['signed', 'completed'] } 
-            });
-            
-            const totalValueResult = await Contract.aggregate([
-                { $group: { _id: null, total: { $sum: '$amount' } } }
+            const [
+                totalContracts,
+                pendingSignatures,
+                completedContracts,
+                totalValueResult,
+                monthlyContracts
+            ] = await Promise.all([
+                Contract.countDocuments(),
+                Contract.countDocuments({ status: 'sent' }),
+                Contract.countDocuments({ status: { $in: ['signed', 'completed'] } }),
+                Contract.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]),
+                Contract.countDocuments({
+                    createdAt: { 
+                        $gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) 
+                    }
+                })
             ]);
+
             const totalValue = totalValueResult[0]?.total || 0;
-            
-            const now = new Date();
-            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-            const monthlyContracts = await Contract.countDocuments({
-                createdAt: { $gte: startOfMonth }
-            });
 
             res.json({
                 data: {
@@ -1007,20 +1324,25 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
                 }
             });
         } else {
-            const totalContracts = await Contract.countDocuments({ user_id: req.user._id });
-            const pendingSignatures = await Contract.countDocuments({ 
-                user_id: req.user._id, 
-                status: 'sent' 
-            });
-            const completedContracts = await Contract.countDocuments({ 
-                user_id: req.user._id,
-                status: { $in: ['signed', 'completed'] } 
-            });
-            
-            const totalValueResult = await Contract.aggregate([
-                { $match: { user_id: req.user._id } },
-                { $group: { _id: null, total: { $sum: '$amount' } } }
+            // User stats
+            const [
+                totalContracts,
+                pendingSignatures,
+                completedContracts,
+                totalValueResult
+            ] = await Promise.all([
+                Contract.countDocuments({ user_id: req.user._id }),
+                Contract.countDocuments({ user_id: req.user._id, status: 'sent' }),
+                Contract.countDocuments({ 
+                    user_id: req.user._id,
+                    status: { $in: ['signed', 'completed'] } 
+                }),
+                Contract.aggregate([
+                    { $match: { user_id: req.user._id } },
+                    { $group: { _id: null, total: { $sum: '$amount' } } }
+                ])
             ]);
+
             const totalValue = totalValueResult[0]?.total || 0;
 
             res.json({
@@ -1039,19 +1361,153 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
 });
 
 // =====================
+// ADDITIONAL ENDPOINTS
+// =====================
+
+// Get contract history
+app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid contract ID' });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ error: 'Contract not found' });
+        }
+
+        // Check access permissions
+        if (req.user.role !== 'admin' && contract.user_id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const history = await ContractHistory.find({ contract_id: id })
+            .populate('performed_by', 'name email')
+            .sort({ createdAt: -1 });
+
+        res.json({ data: history });
+    } catch (error) {
+        console.error('Get contract history error:', error);
+        res.status(500).json({ error: 'Failed to get contract history' });
+    }
+});
+
+// Bulk operations for admin
+app.post('/api/contracts/bulk-action', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { contractIds, action } = req.body;
+
+        if (!contractIds || !Array.isArray(contractIds) || contractIds.length === 0) {
+            return res.status(400).json({ error: 'Contract IDs array required' });
+        }
+
+        if (!action || !['delete', 'send', 'cancel'].includes(action)) {
+            return res.status(400).json({ error: 'Invalid action' });
+        }
+
+        let updateData = {};
+        let actionDescription = '';
+
+        switch (action) {
+            case 'send':
+                updateData = { status: 'sent', sent_at: new Date() };
+                actionDescription = 'Bulk sent by admin';
+                break;
+            case 'cancel':
+                updateData = { status: 'cancelled' };
+                actionDescription = 'Bulk cancelled by admin';
+                break;
+            case 'delete':
+                await Contract.deleteMany({ _id: { $in: contractIds } });
+                return res.json({ message: 'Contracts deleted successfully' });
+        }
+
+        const result = await Contract.updateMany(
+            { _id: { $in: contractIds } },
+            updateData
+        );
+
+        // Log bulk action
+        const historyEntries = contractIds.map(contractId => ({
+            contract_id: contractId,
+            action: `bulk_${action}`,
+            description: actionDescription,
+            performed_by: req.user._id,
+            ip_address: req.ip,
+            user_agent: req.get('User-Agent')
+        }));
+
+        await ContractHistory.insertMany(historyEntries);
+
+        res.json({ 
+            message: `Bulk ${action} completed successfully`,
+            affected: result.modifiedCount
+        });
+    } catch (error) {
+        console.error('Bulk action error:', error);
+        res.status(500).json({ error: 'Failed to perform bulk action' });
+    }
+});
+
+// =====================
 // ERROR HANDLING
 // =====================
 
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Endpoint not found' });
+});
+
+// Global error handler
 app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    
+    // Don't leak error details in production
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    
+    res.status(500).json({ 
+        error: 'Internal server error',
+        ...(isDevelopment && { details: error.message, stack: error.stack })
+    });
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
     console.log('SIGTERM received, shutting down gracefully');
-    await mongoose.connection.close();
-    process.exit(0);
+    try {
+        await mongoose.connection.close();
+        console.log('Database connection closed');
+        process.exit(0);
+    } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+    }
+});
+
+process.on('SIGINT', async () => {
+    console.log('SIGINT received, shutting down gracefully');
+    try {
+        await mongoose.connection.close();
+        console.log('Database connection closed');
+        process.exit(0);
+    } catch (error) {
+        console.error('Error during shutdown:', error);
+        process.exit(1);
+    }
+});
+
+// Uncaught exception handler
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+});
+
+// Unhandled promise rejection handler
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    process.exit(1);
 });
 
 // =====================
@@ -1061,17 +1517,29 @@ process.on('SIGTERM', async () => {
 async function startServer() {
     try {
         await connectDatabase();
-        app.listen(PORT, () => {
+        
+        const server = app.listen(PORT, () => {
             console.log(`🚀 TradeStation Kontrak Digital Server running on port ${PORT}`);
             console.log(`📱 Frontend: ${process.env.FRONTEND_URL || 'https://kontrakdigital.com'}`);
             console.log(`🔗 API Health: https://kontrak-production.up.railway.app/api/health`);
             console.log(`💾 Database: MongoDB Atlas`);
             console.log(`🎯 Ready to handle requests!`);
+            console.log(`🔐 Security: Rate limiting enabled`);
+            console.log(`📊 Monitoring: Activity logging enabled`);
         });
+
+        // Handle server errors
+        server.on('error', (error) => {
+            console.error('Server error:', error);
+        });
+
     } catch (error) {
         console.error('Failed to start server:', error);
+        
+        // Start server anyway with degraded functionality
         app.listen(PORT, () => {
             console.log(`🚀 Server running on port ${PORT} (DB connection failed)`);
+            console.log(`⚠️  Some features may not work properly`);
         });
     }
 }
