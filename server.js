@@ -598,6 +598,7 @@ app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) =>
 
         const userResponse = user.toObject();
         delete userResponse.password;
+        userResponse.id = userResponse._id.toString(); // Add id field for frontend compatibility
 
         res.json({
             message: 'User created successfully',
@@ -864,10 +865,14 @@ app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res)
             .populate('created_by', 'name')
             .sort({ createdAt: -1 });
             
-        const formattedTemplates = templates.map(template => ({
-            ...template.toObject(),
-            created_by_name: template.created_by?.name
-        }));
+        const formattedTemplates = templates.map(template => {
+            const templateObj = template.toObject();
+            return {
+                ...templateObj,
+                id: templateObj._id.toString(), // Add id field for frontend compatibility
+                created_by_name: template.created_by?.name
+            };
+        });
         
         res.json({ data: formattedTemplates });
     } catch (error) {
@@ -896,9 +901,12 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
             created_by: req.user._id
         });
         
+        const templateResponse = template.toObject();
+        templateResponse.id = templateResponse._id.toString();
+        
         res.json({
             message: 'Template created successfully',
-            data: template
+            data: templateResponse
         });
     } catch (error) {
         console.error('Create template error:', error);
@@ -927,9 +935,12 @@ app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, 
             return res.status(404).json({ error: 'Template not found' });
         }
         
+        const templateResponse = template.toObject();
+        templateResponse.id = templateResponse._id.toString();
+        
         res.json({
             message: 'Template updated successfully',
-            data: template
+            data: templateResponse
         });
     } catch (error) {
         console.error('Update template error:', error);
@@ -951,7 +962,8 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
             },
             {
                 $addFields: {
-                    contract_count: { $size: '$contracts' }
+                    contract_count: { $size: '$contracts' },
+                    id: { $toString: '$_id' } // Add id field for frontend compatibility
                 }
             },
             {
