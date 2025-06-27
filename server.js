@@ -11,12 +11,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// MIDDLEWARE (TANPA DEPENDENCY TAMBAHAN)
+// MIDDLEWARE
 // =====================
 
 // CORS Configuration - Permissive untuk semua origin
 app.use(cors({
-    origin: true, // Allow all origins
+    origin: true,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
@@ -24,11 +24,9 @@ app.use(cors({
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
-
-// Trust proxy untuk Railway
 app.set('trust proxy', 1);
 
-// Simple rate limiting tanpa library external
+// Simple rate limiting
 const requests = new Map();
 app.use((req, res, next) => {
     const ip = req.ip || req.connection.remoteAddress;
@@ -77,7 +75,8 @@ const userSchema = new mongoose.Schema({
     balance: { type: Number, default: 0, min: 0 },
     is_active: { type: Boolean, default: true },
     last_login: { type: Date },
-    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    profile_image: { type: String }
 }, { timestamps: true });
 
 const templateSchema = new mongoose.Schema({
@@ -87,7 +86,8 @@ const templateSchema = new mongoose.Schema({
     variables: [{ type: String, trim: true }],
     is_active: { type: Boolean, default: true },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    description: { type: String, trim: true }
+    description: { type: String, trim: true },
+    version: { type: Number, default: 1 }
 }, { timestamps: true });
 
 const contractSchema = new mongoose.Schema({
@@ -100,7 +100,7 @@ const contractSchema = new mongoose.Schema({
     status: { 
         type: String, 
         default: 'draft',
-        enum: ['draft', 'sent', 'signed', 'completed', 'expired', 'cancelled']
+        enum: ['draft', 'sent', 'viewed', 'signed', 'completed', 'expired', 'cancelled']
     },
     variables: { type: Object, default: {} },
     signature_data: { type: String },
@@ -111,7 +111,10 @@ const contractSchema = new mongoose.Schema({
     pdf_file_path: { type: String },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     sent_at: { type: Date },
-    reminder_sent: { type: Number, default: 0 }
+    viewed_at: { type: Date },
+    reminder_sent: { type: Number, default: 0 },
+    ip_signed: { type: String },
+    user_agent_signed: { type: String }
 }, { timestamps: true });
 
 const contractHistorySchema = new mongoose.Schema({
@@ -120,7 +123,8 @@ const contractHistorySchema = new mongoose.Schema({
     description: { type: String, trim: true },
     performed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ip_address: { type: String },
-    user_agent: { type: String }
+    user_agent: { type: String },
+    metadata: { type: Object, default: {} }
 }, { timestamps: true });
 
 // Create Models
@@ -201,166 +205,193 @@ async function setupInitialData() {
                     name: 'Perjanjian Layanan Kerja Sama Konsultasi Investasi',
                     category: 'investment',
                     description: 'Template lengkap untuk perjanjian konsultasi investasi dengan PT. Konsultasi Profesional Indonesia',
-                    content: `# Perjanjian Layanan Kerja Sama Konsultasi Investasi
+                    content: `# PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI
 
-Nomor Kontrak: {{CONTRACT_NUMBER}}
-
-## Pihak A: {{USER_NAME}}
-
-Alamat: {{USER_ADDRESS}}
-Email: {{USER_EMAIL}}
-Telepon: {{USER_PHONE}}
-Trading ID: {{TRADING_ID}}
-
-## Pihak B: PT. Konsultasi Profesional Indonesia
-
-Alamat: Tower 2 Lantai 17 Jl. H. R. Rasuna Said Blok X-5 No.Kav. 2-3,
-RT.1/RW.2, Kuningan, Jakarta Selatan 12950
-
-Kontak: Prof. Bima Agung Rachel
-Telepon: +62 852 - 5852 - 8771
-
-**Pihak A**, sebagai individu, setuju untuk menggunakan layanan analisis
-pasar atau layanan konsultasi yang disediakan oleh **Pihak B**, PT.
-Konsultasi Profesional Indonesia. Pihak B menyediakan layanan seperti
-analisis pasar, konsultasi investasi, analisis produk, laporan riset
-pasar, dsb. Untuk memajukan pembangunan dan kerja sama bersama yang
-saling menguntungkan, dan berdasarkan prinsip kesetaraan dan saling
-menghormati, kedua belah pihak menyepakati ketentuan-ketentuan berikut
-untuk kerja sama ini, dan akan secara ketat mematuhinya.
-
-## Pasal 1: Definisi Awal
-
-1.1. Biaya konsultasi layanan merujuk pada investasi sebesar **{{AMOUNT}}** oleh
-pelanggan. Anda dapat meminta Pihak B untuk melakukan analisis data,
-laporan, dll.
-
-1.2. Biaya transaksi merujuk pada biaya yang dibebankan oleh Pihak B.
-Biaya ini dihitung berdasarkan jumlah transaksi tunggal sebesar **{{TRANSACTION_FEE}}**.
-
-## Pasal 2: Konten Layanan dan Standar Tarif
-
-2.1. Pihak B menyediakan analisis dan rekomendasi kepada Pihak A.
-
-2.2. Pihak A dan B menyetujui metode dan tingkat pembayaran sebesar **{{PAYMENT_METHOD}}**.
-
-2.3. Jika ada biaya tambahan dalam proses kerja sama, harus disetujui
-bersama sebelumnya.
-
-2.4. Laporan akhir yang disediakan Pihak B kepada Pihak A mencakup
-informasi tentang tren industri, analisis pasar, dan opini profesional
-lainnya.
-
-2.5. Informasi yang disediakan oleh Pihak B harus dijaga kerahasiaannya
-oleh Pihak A dan tidak boleh disebarkan tanpa izin tertulis.
-
-## Pasal 3: Metode Penyelesaian
-
-3.1. Pihak A akan menyelesaikan pembayaran untuk layanan dan biaya
-transaksi sesuai perjanjian dalam waktu **{{PAYMENT_TERMS}}** hari.
-
-3.2. Jika pembayaran tidak dilakukan tepat waktu, Pihak A akan dikenakan
-denda harian sebesar **{{LATE_FEE}}**.
-
-3.3. Jika pembayaran tetap tidak dilakukan dalam 30 hari, maka Pihak B
-dapat menangguhkan layanan.
-
-3.4. Pihak A bertanggung jawab atas biaya tambahan akibat kegagalan
-pembayaran.
-
-3.5. Jika terjadi pembatalan, biaya layanan yang sudah dibayarkan tidak
-dapat dikembalikan kecuali jika disepakati lain.
-
-## Pasal 4: Hak dan Kewajiban Pihak A
-
-4.1. Pihak A berhak meminta, mengunduh, dan mengecek data yang diberikan
-oleh Pihak B.
-
-4.2. Pihak A harus mengecek dan mencatat data modal secara harian.
-
-4.3. Jika Pihak A tidak puas terhadap layanan, harus disampaikan dalam
-waktu 3 hari.
-
-4.4. Pihak A wajib memberikan data dasar transaksi dengan benar kepada
-Pihak B.
-
-4.5. Jika ada perubahan musiman atau lainnya, Pihak A dapat meminta
-pengakhiran layanan.
-
-4.6. Pihak A menjamin bahwa dana yang digunakan berasal dari sumber yang
-sah.
-
-4.7. Pihak A tidak boleh menggunakan informasi layanan ini untuk
-tindakan yang melanggar hukum seperti pencucian uang, perjudian,
-penghindaran pajak, dll.
-
-## Pasal 5: Hak dan Kewajiban Pihak B
-
-5.1. Pihak B harus menangani permintaan konsultasi dari Pihak A sesuai
-perjanjian.
-
-5.2. Pihak B bertanggung jawab memberikan informasi konsultasi pasar
-secara akurat.
-
-5.3. Dalam jam kerja normal, Pihak B akan merespons permintaan dari
-Pihak A secara wajar.
-
-5.4. Pihak B berhak untuk meningkatkan layanan dan menyesuaikan konten.
-
-5.5. Pihak B dapat menghentikan layanan jika Pihak A tidak membayar atau
-bertindak mencurigakan.
-
-5.6. Pihak B tidak boleh menipu atau berkolusi dengan pihak lain.
-
-5.7. Pihak B tidak bertanggung jawab atas risiko operasional dari
-keputusan investasi yang dilakukan Pihak A.
-
-5.8. Pihak B dapat menolak transaksi yang melanggar hukum atau
-mencurigakan.
-
-5.9. Sengketa diselesaikan melalui negosiasi damai.
-
-5.10. Jika Pihak B tidak dapat memberikan informasi yang akurat, maka
-Pihak A dapat mengajukan keluhan.
-
-5.11. Layanan ini tidak boleh melanggar hukum atau peraturan negara
-manapun.
-
-5.12. Pihak B berhak mengakhiri perjanjian jika Pihak A tidak
-memberitahukan perubahan penting.
-
-5.13. Jika Pihak A melanggar hukum atau menyebabkan kerugian, Pihak B
-dapat menuntut ganti rugi.
-
-## Pasal 6: Klausul Kerahasiaan
-
-6.1. Informasi yang diperoleh oleh kedua belah pihak selama masa kerja
-sama harus dijaga kerahasiaannya dan tidak boleh disebarkan kepada pihak
-ketiga tanpa izin tertulis.
-
-6.2. Kerahasiaan ini meliputi, namun tidak terbatas pada: Informasi
-pelanggan, Data operasional, Informasi strategi bisnis, dan Data
-investasi.
-
-6.3. Semua informasi tetap milik pihak yang memberikannya dan tidak
-dapat digunakan tanpa izin.
-
-6.4. Klausul ini tetap berlaku meskipun perjanjian berakhir.
+**Nomor Kontrak:** {{CONTRACT_NUMBER}}  
+**Tanggal Kontrak:** {{CONTRACT_DATE}}
 
 ---
 
-**Tertanda di Jakarta, pada tanggal: {{CONTRACT_DATE}}**
+## PIHAK PERTAMA (KLIEN)
 
-**Perwakilan Pihak B:**
-Koh Seng Seng
-(PT. Konsultasi Profesional Indonesia)
+**Nama Lengkap:** {{USER_NAME}}  
+**Email:** {{USER_EMAIL}}  
+**Nomor Telepon:** {{USER_PHONE}}  
+**Trading Account ID:** {{TRADING_ID}}  
+**Alamat:** {{USER_ADDRESS}}
 
-**Pihak A:**
-{{USER_NAME}}
-Trading ID: {{TRADING_ID}}
+---
+
+## PIHAK KEDUA (PENYEDIA LAYANAN)
+
+**Nama Perusahaan:** PT. Konsultasi Profesional Indonesia  
+**Alamat:** Tower 2 Lantai 17 Jl. H. R. Rasuna Said Blok X-5 No.Kav. 2-3, RT.1/RW.2, Kuningan, Jakarta Selatan 12950  
+**Kontak Person:** Prof. Bima Agung Rachel  
+**Telepon:** +62 852 - 5852 - 8771  
+
+---
+
+## PASAL 1: DEFINISI DAN RUANG LINGKUP
+
+**1.1. Nilai Investasi**  
+Pihak Pertama setuju untuk melakukan investasi sebesar **{{AMOUNT}}** sebagai modal dasar untuk layanan konsultasi investasi.
+
+**1.2. Biaya Konsultasi**  
+Biaya konsultasi layanan sebesar **{{CONSULTATION_FEE}}** yang mencakup analisis pasar, rekomendasi investasi, dan laporan berkala.
+
+**1.3. Biaya Transaksi**  
+Biaya transaksi sebesar **{{TRANSACTION_FEE}}** per transaksi yang dilakukan atas rekomendasi Pihak Kedua.
+
+**1.4. Periode Kontrak**  
+Kontrak ini berlaku untuk periode **{{CONTRACT_PERIOD}}** terhitung sejak tanggal penandatanganan.
+
+---
+
+## PASAL 2: LAYANAN YANG DISEDIAKAN
+
+**2.1. Analisis Pasar**  
+Pihak Kedua menyediakan analisis pasar harian, mingguan, dan bulanan sesuai dengan profil risiko Pihak Pertama.
+
+**2.2. Rekomendasi Investasi**  
+Pihak Kedua memberikan rekomendasi investasi yang disesuaikan dengan tujuan finansial dan toleransi risiko Pihak Pertama.
+
+**2.3. Laporan Kinerja**  
+Pihak Kedua menyediakan laporan kinerja investasi secara berkala setiap **{{REPORTING_FREQUENCY}}**.
+
+**2.4. Konsultasi Personal**  
+Pihak Pertama berhak mendapat konsultasi personal maksimal **{{CONSULTATION_HOURS}}** jam per bulan.
+
+---
+
+## PASAL 3: PEMBAYARAN DAN PENYELESAIAN
+
+**3.1. Metode Pembayaran**  
+Pembayaran dilakukan melalui **{{PAYMENT_METHOD}}** dalam mata uang Rupiah.
+
+**3.2. Jadwal Pembayaran**  
+- Pembayaran konsultasi: **{{PAYMENT_SCHEDULE}}**
+- Pembayaran dilakukan paling lambat **{{PAYMENT_TERMS}}** hari setelah invoice diterbitkan
+
+**3.3. Denda Keterlambatan**  
+Keterlambatan pembayaran dikenakan denda sebesar **{{LATE_FEE_RATE}}** per hari dari jumlah yang tertunggak.
+
+---
+
+## PASAL 4: HAK DAN KEWAJIBAN PIHAK PERTAMA
+
+**4.1. Hak Pihak Pertama:**
+- Menerima layanan konsultasi sesuai perjanjian
+- Mendapat akses ke platform analisis dan laporan
+- Meminta klarifikasi atas rekomendasi yang diberikan
+- Mengunduh dan menyimpan semua laporan
+
+**4.2. Kewajiban Pihak Pertama:**
+- Melakukan pembayaran tepat waktu
+- Memberikan informasi yang akurat dan lengkap
+- Mengikuti prosedur yang telah ditetapkan
+- Menjaga kerahasiaan informasi yang diterima
+- Tidak menyebarluaskan strategi investasi kepada pihak lain
+
+---
+
+## PASAL 5: HAK DAN KEWAJIBAN PIHAK KEDUA
+
+**5.1. Hak Pihak Kedua:**
+- Menerima pembayaran sesuai perjanjian
+- Mendapat informasi lengkap dari Pihak Pertama
+- Menghentikan layanan jika terjadi wanprestasi
+- Meminta kompensasi atas kerugian yang ditimbulkan
+
+**5.2. Kewajiban Pihak Kedua:**
+- Memberikan layanan konsultasi sesuai standar profesional
+- Menjaga kerahasiaan informasi klien
+- Memberikan analisis yang objektif dan independen
+- Merespons pertanyaan dalam waktu **{{RESPONSE_TIME}}** jam kerja
+- Memberikan peringatan dini jika terjadi perubahan kondisi pasar
+
+---
+
+## PASAL 6: DISCLAIMER DAN RISIKO
+
+**6.1. Risiko Investasi**  
+Pihak Pertama memahami bahwa investasi mengandung risiko dan Pihak Kedua tidak menjamin keuntungan.
+
+**6.2. Tanggung Jawab Terbatas**  
+Pihak Kedua bertanggung jawab terbatas pada kualitas analisis dan tidak bertanggung jawab atas kerugian investasi.
+
+**6.3. Force Majeure**  
+Kedua pihak tidak bertanggung jawab atas kegagalan pelaksanaan kontrak akibat force majeure.
+
+---
+
+## PASAL 7: KERAHASIAAN
+
+**7.1. Informasi Rahasia**  
+Kedua pihak berkomitmen menjaga kerahasiaan semua informasi yang diperoleh selama kerjasama.
+
+**7.2. Non-Disclosure**  
+Informasi rahasia tidak boleh dibagikan kepada pihak ketiga tanpa persetujuan tertulis.
+
+**7.3. Jangka Waktu**  
+Kewajiban menjaga kerahasiaan berlaku selama **{{CONFIDENTIALITY_PERIOD}}** tahun setelah kontrak berakhir.
+
+---
+
+## PASAL 8: PENYELESAIAN SENGKETA
+
+**8.1. Negosiasi**  
+Sengketa diselesaikan melalui negosiasi dalam waktu **{{NEGOTIATION_PERIOD}}** hari.
+
+**8.2. Mediasi**  
+Jika negosiasi gagal, sengketa diselesaikan melalui mediasi di **{{MEDIATION_LOCATION}}**.
+
+**8.3. Arbitrase**  
+Sengketa terakhir diselesaikan melalui arbitrase sesuai hukum Indonesia.
+
+---
+
+## PASAL 9: KETENTUAN PENUTUP
+
+**9.1. Perubahan Kontrak**  
+Perubahan kontrak harus dilakukan secara tertulis dan disetujui kedua pihak.
+
+**9.2. Pengakhiran Kontrak**  
+Kontrak dapat diakhiri dengan pemberitahuan **{{TERMINATION_NOTICE}}** hari sebelumnya.
+
+**9.3. Hukum yang Berlaku**  
+Kontrak ini tunduk pada hukum Republik Indonesia.
+
+---
+
+**PENUTUP**
+
+Kontrak ini dibuat dalam 2 (dua) rangkap yang sama kekuatan hukumnya, masing-masing pihak menerima 1 (satu) rangkap.
+
+**Ditandatangani di Jakarta pada tanggal {{CONTRACT_DATE}}**
+
+**PIHAK KEDUA**  
+PT. Konsultasi Profesional Indonesia  
+
+**Koh Seng Seng**  
+*Direktur*
+
+---
+
+**PIHAK PERTAMA**  
+
+**{{USER_NAME}}**  
+*Trading ID: {{TRADING_ID}}*
 
 *Tanda tangan digital telah diverifikasi pada {{SIGNED_DATE}}*`,
-                    variables: ['USER_NAME', 'USER_EMAIL', 'USER_PHONE', 'USER_ADDRESS', 'TRADING_ID', 'CONTRACT_NUMBER', 'CONTRACT_DATE', 'AMOUNT', 'TRANSACTION_FEE', 'PAYMENT_METHOD', 'PAYMENT_TERMS', 'LATE_FEE', 'SIGNED_DATE'],
+                    variables: [
+                        'USER_NAME', 'USER_EMAIL', 'USER_PHONE', 'USER_ADDRESS', 'TRADING_ID', 
+                        'CONTRACT_NUMBER', 'CONTRACT_DATE', 'AMOUNT', 'CONSULTATION_FEE', 
+                        'TRANSACTION_FEE', 'CONTRACT_PERIOD', 'REPORTING_FREQUENCY', 
+                        'CONSULTATION_HOURS', 'PAYMENT_METHOD', 'PAYMENT_SCHEDULE', 
+                        'PAYMENT_TERMS', 'LATE_FEE_RATE', 'RESPONSE_TIME', 
+                        'CONFIDENTIALITY_PERIOD', 'NEGOTIATION_PERIOD', 'MEDIATION_LOCATION', 
+                        'TERMINATION_NOTICE', 'SIGNED_DATE'
+                    ],
                     created_by: admin._id
                 });
                 console.log('✅ Default template created');
@@ -391,7 +422,15 @@ function generateContractNumber() {
     return `TSC${year}${month}${day}${random}`;
 }
 
-// PDF Generation
+function formatCurrency(amount) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0
+    }).format(amount);
+}
+
+// Enhanced PDF Generation
 async function generateContractPDF(contract, user, signatureData) {
     return new Promise((resolve, reject) => {
         try {
@@ -414,46 +453,77 @@ async function generateContractPDF(contract, user, signatureData) {
             });
             doc.on('error', reject);
 
-            // Header
-            doc.fontSize(18).font('Helvetica-Bold').text('KONTRAK DIGITAL TRADESTATION', { align: 'center' });
-            doc.moveDown(0.3);
-            doc.fontSize(12).font('Helvetica').text(`Nomor Kontrak: ${contract.number}`, { align: 'center' });
-            doc.fontSize(10).text(`Dibuat pada: ${new Date(contract.createdAt).toLocaleDateString('id-ID')}`, { align: 'center' });
+            // Header dengan logo dan info perusahaan
+            doc.fontSize(20).font('Helvetica-Bold').text('TRADESTATION', 50, 50, { align: 'center' });
+            doc.fontSize(14).font('Helvetica').text('KONTRAK DIGITAL INVESTASI', { align: 'center' });
+            doc.moveDown(0.5);
+            
+            // Info kontrak
+            doc.fontSize(12).font('Helvetica-Bold').text(`Nomor Kontrak: ${contract.number}`, { align: 'center' });
+            doc.fontSize(10).font('Helvetica').text(`Dibuat pada: ${new Date(contract.createdAt).toLocaleDateString('id-ID')}`, { align: 'center' });
+            doc.text(`Nilai Kontrak: ${formatCurrency(contract.amount)}`, { align: 'center' });
+            
+            if (contract.signed_at) {
+                doc.text(`Ditandatangani pada: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, { align: 'center' });
+            }
+            
+            doc.moveDown(1);
+            
+            // Line separator
+            doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
             doc.moveDown(1);
 
-            // Content
+            // Content processing
             let content = contract.content || '';
             
-            // Replace variables
-            content = content.replace(/\{\{USER_NAME\}\}/g, user.name);
-            content = content.replace(/\{\{USER_EMAIL\}\}/g, user.email || '');
-            content = content.replace(/\{\{USER_PHONE\}\}/g, user.phone || '');
-            content = content.replace(/\{\{TRADING_ID\}\}/g, user.trading_account || '');
-            content = content.replace(/\{\{CONTRACT_NUMBER\}\}/g, contract.number);
-            content = content.replace(/\{\{CONTRACT_DATE\}\}/g, new Date(contract.createdAt).toLocaleDateString('id-ID'));
-            content = content.replace(/\{\{AMOUNT\}\}/g, new Intl.NumberFormat('id-ID', {
-                style: 'currency',
-                currency: 'IDR',
-                minimumFractionDigits: 0
-            }).format(contract.amount));
+            // Replace system variables
+            const replacements = {
+                '{{USER_NAME}}': user.name || '',
+                '{{USER_EMAIL}}': user.email || '',
+                '{{USER_PHONE}}': user.phone || '',
+                '{{TRADING_ID}}': user.trading_account || '',
+                '{{CONTRACT_NUMBER}}': contract.number,
+                '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
+                '{{AMOUNT}}': formatCurrency(contract.amount),
+                '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
+            };
+
+            // Replace system variables
+            Object.keys(replacements).forEach(key => {
+                const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+                content = content.replace(regex, replacements[key]);
+            });
 
             // Replace custom variables
             Object.keys(contract.variables || {}).forEach(key => {
                 const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-                content = content.replace(regex, contract.variables[key] || '');
+                content = content.replace(regex, contract.variables[key] || `[${key} - Tidak Diisi]`);
             });
 
-            // Process content
+            // Process content line by line
             const lines = content.split('\n');
             
             lines.forEach(line => {
                 line = line.trim();
                 if (line) {
+                    // Check if we need a new page
+                    if (doc.y > 720) {
+                        doc.addPage();
+                    }
+                    
                     if (line.startsWith('# ')) {
-                        doc.fontSize(14).font('Helvetica-Bold').text(line.substring(2), { align: 'center' });
+                        doc.fontSize(16).font('Helvetica-Bold').text(line.substring(2), { align: 'center' });
                         doc.moveDown(0.5);
                     } else if (line.startsWith('## ')) {
-                        doc.fontSize(12).font('Helvetica-Bold').text(line.substring(3));
+                        doc.fontSize(14).font('Helvetica-Bold').text(line.substring(3));
+                        doc.moveDown(0.3);
+                    } else if (line.startsWith('**') && line.endsWith('**')) {
+                        const text = line.replace(/\*\*/g, '');
+                        doc.fontSize(11).font('Helvetica-Bold').text(text);
+                        doc.moveDown(0.2);
+                    } else if (line.startsWith('---')) {
+                        doc.moveDown(0.3);
+                        doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke();
                         doc.moveDown(0.3);
                     } else {
                         const processedLine = line.replace(/\*\*(.*?)\*\*/g, '$1');
@@ -463,25 +533,51 @@ async function generateContractPDF(contract, user, signatureData) {
                         });
                         doc.moveDown(0.2);
                     }
-                    
-                    if (doc.y > 720) {
-                        doc.addPage();
-                    }
                 }
             });
 
             // Signature section
-            doc.moveDown(2);
-            doc.fontSize(12).font('Helvetica-Bold').text('TANDA TANGAN DIGITAL', { align: 'center' });
-            doc.moveDown(0.5);
+            doc.addPage();
+            doc.fontSize(16).font('Helvetica-Bold').text('TANDA TANGAN DIGITAL', { align: 'center' });
+            doc.moveDown(1);
             
             if (signatureData && contract.signed_at) {
-                doc.fontSize(10).font('Helvetica-Bold').text('✓ KONTRAK TELAH DITANDATANGANI SECARA DIGITAL', { align: 'center' });
-                doc.moveDown(0.3);
-                doc.font('Helvetica').text(`Ditandatangani oleh: ${user.name}`, { align: 'center' });
-                doc.text(`Trading ID: ${user.trading_account}`, { align: 'center' });
-                doc.text(`Tanggal: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, { align: 'center' });
+                doc.fontSize(12).font('Helvetica-Bold').text('✅ KONTRAK TELAH DITANDATANGANI SECARA SAH', { align: 'center' });
+                doc.moveDown(0.5);
+                
+                // Signature info box
+                doc.rect(100, doc.y, 350, 120).stroke();
+                const signatureY = doc.y + 10;
+                
+                doc.fontSize(11).font('Helvetica-Bold').text('INFORMASI PENANDATANGANAN:', 110, signatureY);
+                doc.fontSize(10).font('Helvetica');
+                doc.text(`Nama: ${user.name}`, 110, signatureY + 20);
+                doc.text(`Email: ${user.email}`, 110, signatureY + 35);
+                doc.text(`Trading ID: ${user.trading_account}`, 110, signatureY + 50);
+                doc.text(`Tanggal: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, 110, signatureY + 65);
+                doc.text(`IP Address: ${contract.ip_signed || 'N/A'}`, 110, signatureY + 80);
+                doc.text(`Metode: Tanda Tangan Digital`, 110, signatureY + 95);
+                
+                doc.moveDown(8);
+                
+                // Digital signature verification
+                doc.fontSize(10).font('Helvetica-Italic').text(
+                    'Dokumen ini telah ditandatangani secara digital dan terverifikasi oleh sistem TradeStation. ' +
+                    'Tanda tangan digital memiliki kekuatan hukum yang sama dengan tanda tangan basah ' +
+                    'sesuai UU No. 11 Tahun 2008 tentang Informasi dan Transaksi Elektronik.',
+                    { align: 'justify' }
+                );
+            } else {
+                doc.fontSize(12).font('Helvetica').text('⏳ MENUNGGU TANDA TANGAN DIGITAL', { align: 'center' });
+                doc.moveDown(0.5);
+                doc.fontSize(10).text('Kontrak ini belum ditandatangani oleh pihak yang bersangkutan', { align: 'center' });
             }
+
+            // Footer
+            doc.fontSize(8).font('Helvetica-Italic').text(
+                `Dokumen ini dibuat secara otomatis oleh TradeStation pada ${new Date().toLocaleString('id-ID')}`,
+                50, 750, { align: 'center' }
+            );
 
             doc.end();
         } catch (error) {
@@ -525,6 +621,26 @@ const authenticateAdmin = async (req, res, next) => {
     next();
 };
 
+// Helper function untuk logging contract activity
+async function logContractActivity(contractId, action, description, userId = null, req = null) {
+    try {
+        await ContractHistory.create({
+            contract_id: contractId,
+            action,
+            description,
+            performed_by: userId,
+            ip_address: req ? req.ip : null,
+            user_agent: req ? req.get('User-Agent') : null,
+            metadata: {
+                timestamp: new Date(),
+                source: 'system'
+            }
+        });
+    } catch (error) {
+        console.error('Failed to log contract activity:', error);
+    }
+}
+
 // =====================
 // ROUTES
 // =====================
@@ -541,7 +657,16 @@ app.get('/api/health', async (req, res) => {
             environment: process.env.NODE_ENV || 'development',
             mongodb: 'MongoDB Atlas',
             uptime: process.uptime(),
-            version: '1.0.0'
+            version: '2.0.0',
+            features: [
+                'Complete Digital Contract System',
+                'Advanced PDF Generation',
+                'Digital Signature Support',
+                'Template Management',
+                'User Management',
+                'Audit Trail',
+                'Real-time Statistics'
+            ]
         });
     } catch (error) {
         res.status(503).json({
@@ -626,7 +751,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     }
 });
 
-// Contract Access Routes
+// Contract Access Routes (Public)
 app.get('/api/contracts/access/:token', async (req, res) => {
     try {
         const { token } = req.params;
@@ -645,34 +770,50 @@ app.get('/api/contracts/access/:token', async (req, res) => {
 
         if (contract.expiry_date && new Date() > contract.expiry_date) {
             await Contract.findByIdAndUpdate(contract._id, { status: 'expired' });
+            await logContractActivity(contract._id, 'expired', 'Contract expired due to expiry date', null, req);
             return res.status(410).json({ error: 'Contract has expired' });
+        }
+
+        // Update viewed status if first time
+        if (contract.status === 'sent') {
+            await Contract.findByIdAndUpdate(contract._id, { 
+                status: 'viewed',
+                viewed_at: new Date()
+            });
+            await logContractActivity(contract._id, 'viewed', 'Contract viewed by client', contract.user_id._id, req);
         }
 
         let content = contract.template_id?.content || contract.content || '';
         const variables = contract.variables || {};
         
-        // Replace variables
-        content = content.replace(/\{\{USER_NAME\}\}/g, contract.user_id.name);
-        content = content.replace(/\{\{USER_EMAIL\}\}/g, contract.user_id.email || '');
-        content = content.replace(/\{\{USER_PHONE\}\}/g, contract.user_id.phone || '');
-        content = content.replace(/\{\{TRADING_ID\}\}/g, contract.user_id.trading_account || '');
-        content = content.replace(/\{\{CONTRACT_NUMBER\}\}/g, contract.number);
-        content = content.replace(/\{\{CONTRACT_DATE\}\}/g, new Date(contract.createdAt).toLocaleDateString('id-ID'));
-        content = content.replace(/\{\{AMOUNT\}\}/g, new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(contract.amount));
+        // Replace system variables
+        const replacements = {
+            '{{USER_NAME}}': contract.user_id.name,
+            '{{USER_EMAIL}}': contract.user_id.email || '',
+            '{{USER_PHONE}}': contract.user_id.phone || '',
+            '{{TRADING_ID}}': contract.user_id.trading_account || '',
+            '{{CONTRACT_NUMBER}}': contract.number,
+            '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
+            '{{AMOUNT}}': formatCurrency(contract.amount),
+            '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
+        };
 
+        Object.keys(replacements).forEach(key => {
+            const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+            content = content.replace(regex, replacements[key]);
+        });
+
+        // Replace custom variables
         Object.keys(variables).forEach(key => {
             const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-            content = content.replace(regex, variables[key] || '');
+            content = content.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
         });
 
         res.json({
             data: {
                 ...contract.toObject(),
                 content,
+                canSign: contract.status === 'viewed' || contract.status === 'sent',
                 user: {
                     name: contract.user_id.name,
                     email: contract.user_id.email,
@@ -694,7 +835,7 @@ app.get('/api/contracts/access/:token', async (req, res) => {
 app.post('/api/contracts/access/:token/sign', async (req, res) => {
     try {
         const { token } = req.params;
-        const { signatureData, variables } = req.body;
+        const { signatureData, variables, clientName, clientEmail } = req.body;
 
         if (!signatureData) {
             return res.status(400).json({ error: 'Signature data required' });
@@ -715,36 +856,44 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
             return res.status(400).json({ error: 'Contract already signed' });
         }
 
-        if (contract.status !== 'sent') {
+        if (!['sent', 'viewed'].includes(contract.status)) {
             return res.status(400).json({ error: 'Contract is not ready for signing' });
         }
 
-        const finalVariables = variables ? { ...contract.variables, ...variables } : contract.variables;
-        const updatedContract = { ...contract.toObject(), variables: finalVariables };
-        
-        // Generate PDF
-        await generateContractPDF(updatedContract, contract.user_id, signatureData);
+        // Validate client information if provided
+        if (clientName && clientName.toLowerCase() !== contract.user_id.name.toLowerCase()) {
+            return res.status(400).json({ error: 'Client name does not match contract' });
+        }
 
+        if (clientEmail && clientEmail.toLowerCase() !== contract.user_id.email.toLowerCase()) {
+            return res.status(400).json({ error: 'Client email does not match contract' });
+        }
+
+        const finalVariables = variables ? { ...contract.variables, ...variables } : contract.variables;
+        const signedAt = new Date();
+        
         await Contract.findByIdAndUpdate(contract._id, {
             status: 'signed',
             signature_data: signatureData,
-            signed_at: new Date(),
-            variables: finalVariables
+            signed_at: signedAt,
+            variables: finalVariables,
+            ip_signed: req.ip,
+            user_agent_signed: req.get('User-Agent')
         });
 
-        await ContractHistory.create({
-            contract_id: contract._id,
-            action: 'signed',
-            description: 'Contract signed by user with digital signature',
-            performed_by: contract.user_id._id,
-            ip_address: req.ip,
-            user_agent: req.get('User-Agent')
-        });
+        await logContractActivity(
+            contract._id, 
+            'signed', 
+            'Contract signed with digital signature', 
+            contract.user_id._id, 
+            req
+        );
 
         res.json({ 
             message: 'Contract signed successfully',
             pdfDownloadUrl: `/api/contracts/download/${contract._id}`,
-            signedAt: new Date().toISOString()
+            signedAt: signedAt.toISOString(),
+            contractNumber: contract.number
         });
     } catch (error) {
         console.error('Contract signing error:', error);
@@ -767,14 +916,22 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
             return res.status(404).json({ error: 'Contract not found' });
         }
 
-        if (contract.status !== 'signed' && contract.status !== 'completed') {
+        if (!['signed', 'completed'].includes(contract.status)) {
             return res.status(400).json({ error: 'Contract is not signed yet' });
         }
 
         const pdfBuffer = await generateContractPDF(contract, contract.user_id, contract.signature_data);
 
+        await logContractActivity(
+            contract._id,
+            'downloaded',
+            'Contract PDF downloaded',
+            null,
+            req
+        );
+
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="Kontrak_${contract.number}.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="Kontrak_${contract.number}_${contract.user_id.name.replace(/\s+/g, '_')}.pdf"`);
         res.setHeader('Content-Length', pdfBuffer.length);
         
         res.send(pdfBuffer);
@@ -784,29 +941,49 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
     }
 });
 
-// Admin Routes
+// Admin Contract Management Routes
 app.get('/api/contracts', authenticateToken, async (req, res) => {
     try {
+        const { page = 1, limit = 50, status, user_id } = req.query;
+        
         let query = {};
         if (req.user.role !== 'admin') {
             query.user_id = req.user._id;
+        } else {
+            if (status) query.status = status;
+            if (user_id) query.user_id = user_id;
         }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
 
         const contracts = await Contract.find(query)
             .populate('user_id', 'name email phone trading_account')
             .populate('template_id', 'name')
+            .populate('created_by', 'name')
             .sort({ createdAt: -1 })
-            .limit(100);
+            .skip(skip)
+            .limit(parseInt(limit));
+        
+        const total = await Contract.countDocuments(query);
         
         const formattedContracts = contracts.map(contract => ({
             ...contract.toObject(),
             user_name: contract.user_id?.name,
             user_email: contract.user_id?.email,
             trading_account: contract.user_id?.trading_account,
-            template_name: contract.template_id?.name
+            template_name: contract.template_id?.name,
+            created_by_name: contract.created_by?.name
         }));
         
-        res.json({ data: formattedContracts });
+        res.json({ 
+            data: formattedContracts,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
     } catch (error) {
         console.error('Get contracts error:', error);
         res.status(500).json({ error: 'Failed to get contracts' });
@@ -815,10 +992,31 @@ app.get('/api/contracts', authenticateToken, async (req, res) => {
 
 app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
-        const { title, templateId, userId, amount, variables, sendImmediately } = req.body;
+        const { 
+            title, 
+            templateId, 
+            userId, 
+            amount, 
+            variables, 
+            sendImmediately, 
+            expiryDate, 
+            adminNotes 
+        } = req.body;
 
         if (!title || !templateId || !userId || amount === undefined) {
-            return res.status(400).json({ error: 'Missing required fields' });
+            return res.status(400).json({ error: 'Missing required fields: title, templateId, userId, amount' });
+        }
+
+        // Validate user exists
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Validate template exists
+        const template = await Template.findById(templateId);
+        if (!template) {
+            return res.status(404).json({ error: 'Template not found' });
         }
 
         const contractNumber = generateContractNumber();
@@ -835,17 +1033,119 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
             variables: variables || {},
             access_token: accessToken,
             created_by: req.user._id,
-            sent_at: sendImmediately ? new Date() : null
+            sent_at: sendImmediately ? new Date() : null,
+            expiry_date: expiryDate ? new Date(expiryDate) : null,
+            admin_notes: adminNotes?.trim()
         });
+
+        await logContractActivity(
+            contract._id,
+            'created',
+            `Contract created by admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
+
+        if (sendImmediately) {
+            await logContractActivity(
+                contract._id,
+                'sent',
+                'Contract immediately sent to client',
+                req.user._id,
+                req
+            );
+        }
 
         res.json({
             message: 'Contract created successfully',
             data: contract,
-            accessLink: `${process.env.FRONTEND_URL || 'https://kontrakdigital.com'}/?token=${accessToken}`
+            accessLink: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?token=${accessToken}`
         });
     } catch (error) {
         console.error('Create contract error:', error);
         res.status(500).json({ error: 'Failed to create contract' });
+    }
+});
+
+app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, amount, variables, status, adminNotes, expiryDate } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid contract ID' });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ error: 'Contract not found' });
+        }
+
+        if (contract.status === 'signed') {
+            return res.status(400).json({ error: 'Cannot modify signed contract' });
+        }
+
+        const updateData = {};
+        if (title) updateData.title = title.trim();
+        if (amount !== undefined) updateData.amount = parseFloat(amount);
+        if (variables) updateData.variables = { ...contract.variables, ...variables };
+        if (status) updateData.status = status;
+        if (adminNotes !== undefined) updateData.admin_notes = adminNotes.trim();
+        if (expiryDate) updateData.expiry_date = new Date(expiryDate);
+
+        const updatedContract = await Contract.findByIdAndUpdate(id, updateData, { new: true })
+            .populate('user_id', 'name email')
+            .populate('template_id', 'name');
+
+        await logContractActivity(
+            contract._id,
+            'updated',
+            `Contract updated by admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
+
+        res.json({
+            message: 'Contract updated successfully',
+            data: updatedContract
+        });
+    } catch (error) {
+        console.error('Update contract error:', error);
+        res.status(500).json({ error: 'Failed to update contract' });
+    }
+});
+
+app.delete('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid contract ID' });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ error: 'Contract not found' });
+        }
+
+        if (contract.status === 'signed') {
+            return res.status(400).json({ error: 'Cannot delete signed contract' });
+        }
+
+        await Contract.findByIdAndUpdate(id, { status: 'cancelled' });
+
+        await logContractActivity(
+            contract._id,
+            'cancelled',
+            `Contract cancelled by admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
+
+        res.json({ message: 'Contract cancelled successfully' });
+    } catch (error) {
+        console.error('Delete contract error:', error);
+        res.status(500).json({ error: 'Failed to cancel contract' });
     }
 });
 
@@ -867,9 +1167,17 @@ app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmi
                 status: 'sent',
                 sent_at: new Date()
             });
+
+            await logContractActivity(
+                contract._id,
+                'sent',
+                `Contract link generated and sent by admin ${req.user.name}`,
+                req.user._id,
+                req
+            );
         }
 
-        const accessLink = `${process.env.FRONTEND_URL || 'https://kontrakdigital.com'}/?token=${contract.access_token}`;
+        const accessLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?token=${contract.access_token}`;
         
         res.json({
             message: 'Contract link generated successfully',
@@ -882,9 +1190,21 @@ app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmi
     }
 });
 
+// Template Management Routes
 app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
-        const templates = await Template.find({ is_active: true })
+        const { category, search } = req.query;
+        let query = { is_active: true };
+        
+        if (category) query.category = category;
+        if (search) {
+            query.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const templates = await Template.find(query)
             .populate('created_by', 'name')
             .sort({ createdAt: -1 });
             
@@ -909,6 +1229,7 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
             return res.status(400).json({ error: 'Name and content required' });
         }
         
+        // Extract variables from content
         const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
         const variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
         
@@ -934,13 +1255,122 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
     }
 });
 
+app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, category, content, description } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid template ID' });
+        }
+
+        const template = await Template.findById(id);
+        if (!template) {
+            return res.status(404).json({ error: 'Template not found' });
+        }
+
+        const updateData = {};
+        if (name) updateData.name = name.trim();
+        if (category) updateData.category = category.trim();
+        if (description !== undefined) updateData.description = description.trim();
+        
+        if (content) {
+            updateData.content = content.trim();
+            // Re-extract variables
+            const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
+            updateData.variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
+            updateData.version = template.version + 1;
+        }
+
+        const updatedTemplate = await Template.findByIdAndUpdate(id, updateData, { new: true });
+
+        res.json({
+            message: 'Template updated successfully',
+            data: updatedTemplate
+        });
+    } catch (error) {
+        console.error('Update template error:', error);
+        res.status(500).json({ error: 'Failed to update template' });
+    }
+});
+
+app.delete('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid template ID' });
+        }
+
+        const template = await Template.findById(id);
+        if (!template) {
+            return res.status(404).json({ error: 'Template not found' });
+        }
+
+        // Check if template is being used
+        const contractsUsingTemplate = await Contract.countDocuments({ 
+            template_id: id,
+            status: { $nin: ['cancelled'] }
+        });
+
+        if (contractsUsingTemplate > 0) {
+            return res.status(400).json({ 
+                error: `Cannot delete template. It is being used by ${contractsUsingTemplate} contract(s)` 
+            });
+        }
+
+        await Template.findByIdAndUpdate(id, { is_active: false });
+
+        res.json({ message: 'Template deleted successfully' });
+    } catch (error) {
+        console.error('Delete template error:', error);
+        res.status(500).json({ error: 'Failed to delete template' });
+    }
+});
+
+// User Management Routes
 app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
-        const users = await User.find({ is_active: true })
-            .select('-password')
-            .sort({ createdAt: -1 });
+        const { role, search, page = 1, limit = 50 } = req.query;
+        let query = { is_active: true };
         
-        res.json({ data: users });
+        if (role) query.role = role;
+        if (search) {
+            query.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+                { trading_account: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const users = await User.find(query)
+            .select('-password')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        // Get contract count for each user
+        const usersWithStats = await Promise.all(users.map(async (user) => {
+            const contractCount = await Contract.countDocuments({ user_id: user._id });
+            return {
+                ...user.toObject(),
+                contract_count: contractCount
+            };
+        }));
+
+        const total = await User.countDocuments(query);
+        
+        res.json({ 
+            data: usersWithStats,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
     } catch (error) {
         console.error('Get users error:', error);
         res.status(500).json({ error: 'Failed to get users' });
@@ -949,7 +1379,7 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
 
 app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
-        const { name, email, phone, tradingAccount } = req.body;
+        const { name, email, phone, tradingAccount, role = 'user' } = req.body;
 
         if (!name || !email || !phone) {
             return res.status(400).json({ error: 'Name, email, and phone are required' });
@@ -969,7 +1399,7 @@ app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) =>
             email: email.toLowerCase().trim(),
             phone: phone.trim(),
             password: hashedPassword,
-            role: 'user',
+            role: ['user', 'admin'].includes(role) ? role : 'user',
             trading_account: finalTradingAccount,
             balance: 0,
             created_by: req.user._id
@@ -990,14 +1420,99 @@ app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) =>
     }
 });
 
+app.put('/api/users/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, phone, tradingAccount, role, balance, is_active } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const updateData = {};
+        if (name) updateData.name = name.trim();
+        if (email) {
+            const existingUser = await User.findOne({ 
+                email: email.toLowerCase(), 
+                _id: { $ne: id } 
+            });
+            if (existingUser) {
+                return res.status(400).json({ error: 'Email already exists' });
+            }
+            updateData.email = email.toLowerCase().trim();
+        }
+        if (phone) updateData.phone = phone.trim();
+        if (tradingAccount) updateData.trading_account = tradingAccount.trim();
+        if (role && ['user', 'admin'].includes(role)) updateData.role = role;
+        if (balance !== undefined) updateData.balance = parseFloat(balance);
+        if (is_active !== undefined) updateData.is_active = is_active;
+
+        const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+
+        res.json({
+            message: 'User updated successfully',
+            data: updatedUser
+        });
+    } catch (error) {
+        console.error('Update user error:', error);
+        res.status(500).json({ error: 'Failed to update user' });
+    }
+});
+
+app.post('/api/users/:id/reset-password', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { newPassword = 'trader123' } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await User.findByIdAndUpdate(id, { password: hashedPassword });
+
+        res.json({
+            message: 'Password reset successfully',
+            newPassword
+        });
+    } catch (error) {
+        console.error('Reset password error:', error);
+        res.status(500).json({ error: 'Failed to reset password' });
+    }
+});
+
+// Dashboard Statistics
 app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
     try {
         if (req.user.role === 'admin') {
-            const [totalContracts, pendingSignatures, completedContracts, totalValueResult] = await Promise.all([
+            const [
+                totalContracts,
+                pendingSignatures,
+                completedContracts,
+                totalValueResult,
+                recentActivity,
+                statusBreakdown
+            ] = await Promise.all([
                 Contract.countDocuments(),
-                Contract.countDocuments({ status: 'sent' }),
+                Contract.countDocuments({ status: { $in: ['sent', 'viewed'] } }),
                 Contract.countDocuments({ status: { $in: ['signed', 'completed'] } }),
-                Contract.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }])
+                Contract.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]),
+                Contract.find().sort({ createdAt: -1 }).limit(5)
+                    .populate('user_id', 'name')
+                    .select('title status createdAt user_id'),
+                Contract.aggregate([
+                    { $group: { _id: '$status', count: { $sum: 1 } } }
+                ])
             ]);
 
             res.json({
@@ -1005,18 +1520,33 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
                     totalContracts,
                     pendingSignatures,
                     completedContracts,
-                    totalValue: totalValueResult[0]?.total || 0
+                    totalValue: totalValueResult[0]?.total || 0,
+                    recentActivity: recentActivity.map(contract => ({
+                        title: contract.title,
+                        status: contract.status,
+                        user_name: contract.user_id?.name,
+                        createdAt: contract.createdAt
+                    })),
+                    statusBreakdown: statusBreakdown.reduce((acc, item) => {
+                        acc[item._id] = item.count;
+                        return acc;
+                    }, {})
                 }
             });
         } else {
             const [totalContracts, pendingSignatures, completedContracts] = await Promise.all([
                 Contract.countDocuments({ user_id: req.user._id }),
-                Contract.countDocuments({ user_id: req.user._id, status: 'sent' }),
+                Contract.countDocuments({ user_id: req.user._id, status: { $in: ['sent', 'viewed'] } }),
                 Contract.countDocuments({ user_id: req.user._id, status: { $in: ['signed', 'completed'] } })
             ]);
 
             res.json({
-                data: { totalContracts, pendingSignatures, completedContracts, totalValue: 0 }
+                data: { 
+                    totalContracts, 
+                    pendingSignatures, 
+                    completedContracts, 
+                    totalValue: 0 
+                }
             });
         }
     } catch (error) {
@@ -1025,17 +1555,67 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
     }
 });
 
+// Contract History/Audit Trail
+app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'Invalid contract ID' });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ error: 'Contract not found' });
+        }
+
+        // Check access rights
+        if (req.user.role !== 'admin' && contract.user_id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: 'Access denied' });
+        }
+
+        const history = await ContractHistory.find({ contract_id: id })
+            .populate('performed_by', 'name email')
+            .sort({ createdAt: -1 });
+
+        res.json({ data: history });
+    } catch (error) {
+        console.error('Get contract history error:', error);
+        res.status(500).json({ error: 'Failed to get contract history' });
+    }
+});
+
 // Error handling
 app.use((req, res) => {
-    res.status(404).json({ error: 'Endpoint not found' });
+    res.status(404).json({ 
+        error: 'Endpoint not found',
+        path: req.path,
+        method: req.method 
+    });
 });
 
 app.use((error, req, res, next) => {
     console.error('Unhandled error:', error);
     res.status(500).json({ 
         error: 'Internal server error',
-        ...(process.env.NODE_ENV === 'development' && { details: error.message })
+        ...(process.env.NODE_ENV === 'development' && { 
+            details: error.message,
+            stack: error.stack 
+        })
     });
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    await mongoose.connection.close();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('SIGINT received, shutting down gracefully');  
+    await mongoose.connection.close();
+    process.exit(0);
 });
 
 // Start server
@@ -1044,12 +1624,12 @@ async function startServer() {
         await connectDatabase();
         
         const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 TradeStation Kontrak Digital Server running on port ${PORT}`);
-            console.log(`📱 Frontend: ${process.env.FRONTEND_URL || 'https://kontrakdigital.com'}`);
-            console.log(`🔗 API Health: https://kontrak-production.up.railway.app/api/health`);
-            console.log(`💾 Database: MongoDB Atlas`);
+            console.log(`🚀 TradeStation Digital Contract Server v2.0.0`);
+            console.log(`📱 Server running on port ${PORT}`);
+            console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
+            console.log(`💾 Database: MongoDB Atlas Connected`);
+            console.log(`✅ Features: Complete Digital Contract System`);
             console.log(`🎯 Ready to handle requests!`);
-            console.log(`✅ NO EXTERNAL DEPENDENCIES - Clean & Stable`);
         });
 
         server.on('error', (error) => {
@@ -1063,16 +1643,5 @@ async function startServer() {
         });
     }
 }
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-    console.log('SIGTERM received, shutting down gracefully');
-    process.exit(0);
-});
-
-process.on('SIGINT', () => {
-    console.log('SIGINT received, shutting down gracefully');  
-    process.exit(0);
-});
 
 startServer();
