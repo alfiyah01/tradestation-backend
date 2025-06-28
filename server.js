@@ -11,10 +11,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// PENGATURAN DASAR - Ini untuk mengatur server
+// PENGATURAN DASAR
 // =====================
 
-// CORS - Agar frontend bisa berkomunikasi dengan backend
 app.use(cors({
     origin: true,
     credentials: true,
@@ -26,7 +25,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
-// Pembatasan permintaan - Mencegah spam
+// Rate limiting
 const requests = new Map();
 app.use((req, res, next) => {
     const ip = req.ip || req.connection.remoteAddress;
@@ -54,17 +53,16 @@ app.use((req, res, next) => {
 });
 
 // =====================
-// PENGATURAN DATABASE - Ini untuk menghubungkan ke MongoDB
+// DATABASE CONFIG
 // =====================
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rizalitam10:Yusrizal1993@cluster0.s0e5g5h.mongodb.net/kontrakdb?retryWrites=true&w=majority&appName=Cluster0';
 const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secret_key_2024_secure';
 
 // =====================
-// SKEMA DATABASE - Ini adalah struktur data yang akan disimpan
+// DATABASE SCHEMAS
 // =====================
 
-// Skema User - Data pengguna
 const userSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -80,7 +78,6 @@ const userSchema = new mongoose.Schema({
     profile_image: { type: String }
 }, { timestamps: true });
 
-// Skema Template - Data template kontrak
 const templateSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     category: { type: String, default: 'general', trim: true },
@@ -92,7 +89,6 @@ const templateSchema = new mongoose.Schema({
     version: { type: Number, default: 1 }
 }, { timestamps: true });
 
-// Skema Contract - Data kontrak
 const contractSchema = new mongoose.Schema({
     title: { type: String, required: true, trim: true },
     number: { type: String, required: true, unique: true, trim: true },
@@ -120,7 +116,6 @@ const contractSchema = new mongoose.Schema({
     user_agent_signed: { type: String }
 }, { timestamps: true });
 
-// Skema History - Riwayat aktivitas kontrak
 const contractHistorySchema = new mongoose.Schema({
     contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract', required: true },
     action: { type: String, required: true, trim: true },
@@ -131,14 +126,14 @@ const contractHistorySchema = new mongoose.Schema({
     metadata: { type: Object, default: {} }
 }, { timestamps: true });
 
-// Membuat model dari skema
+// Create models
 const User = mongoose.model('User', userSchema);
 const Template = mongoose.model('Template', templateSchema);
 const Contract = mongoose.model('Contract', contractSchema);
 const ContractHistory = mongoose.model('ContractHistory', contractHistorySchema);
 
 // =====================
-// KONEKSI DATABASE - Menghubungkan ke MongoDB
+// DATABASE CONNECTION
 // =====================
 
 async function connectDatabase() {
@@ -162,12 +157,11 @@ async function connectDatabase() {
     }
 }
 
-// Menyiapkan data awal
 async function setupInitialData() {
     try {
         console.log('🚀 Menyiapkan data awal...');
         
-        // Membuat user admin
+        // Create admin user
         const adminExists = await User.findOne({ email: 'admin@tradestation.com' });
         if (!adminExists) {
             const hashedPassword = await bcrypt.hash('admin123', 12);
@@ -184,7 +178,7 @@ async function setupInitialData() {
             console.log('✅ User admin default telah dibuat');
         }
         
-        // Membuat user contoh
+        // Create sample user
         const userExists = await User.findOne({ email: 'hermanzal@trader.com' });
         if (!userExists) {
             const hashedPassword = await bcrypt.hash('trader123', 12);
@@ -201,7 +195,7 @@ async function setupInitialData() {
             console.log('✅ User contoh telah dibuat');
         }
         
-        // Membuat template default
+        // Create default template
         const templateExists = await Template.findOne({ name: 'Perjanjian Layanan Kerja Sama Konsultasi Investasi' });
         if (!templateExists) {
             const admin = await User.findOne({ role: 'admin' });
@@ -232,7 +226,7 @@ async function setupInitialData() {
 
 1.2. Biaya transaksi merujuk pada biaya yang dibebankan oleh Pihak B kepada Pihak A. Biaya ini dihitung berdasarkan jumlah Profit dari transaksi Investasi sebesar 30 % hingga 50 %.
 
-1.3. Nilai modal Investasi Pihak A sebesar {{AMOUNT}} dengan durasi kontrak kerja sama investasi selama {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+1.3. Nilai modal Investasi Pihak A sebesar {{AMOUNT}} dengan durasi kontrak kerja sama investasi selama {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
 
 ## Pasal 2: Konten Layanan dan Standar Tarif
 
@@ -248,9 +242,7 @@ async function setupInitialData() {
 
 ## Pasal 3: Metode Penyelesaian
 
-3.1. Pihak A akan menyelesaikan pembayaran untuk layanan konsultasi / panduan transaksi investasi setelah Pihak A mendapatkan nilai Profit dari Transaksi investasi
-
-dan pembayaran komisi konsultasi berlaku selama {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+3.1. Pihak A akan menyelesaikan pembayaran untuk layanan konsultasi / panduan transaksi investasi setelah Pihak A mendapatkan nilai Profit dari Transaksi investasi dan pembayaran komisi konsultasi berlaku selama {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
 
 3.2. Jika pembayaran tidak dilakukan tepat waktu, Pihak A akan dikenakan denda harian.
 
@@ -262,21 +254,15 @@ dan pembayaran komisi konsultasi berlaku selama {{DAY}} hari atau minimal {{NUMB
 
 ## Pasal 4: Hak dan Kewajiban Pihak A
 
-4.1. Pihak A berhak meminta, dan menerima data yang akurat untuk hasil profit 100 % oleh Pihak B. Jika Pihak A collapse / merugi Pihak B wajib melakukan gant rugi
+4.1. Pihak A berhak meminta, dan menerima data yang akurat untuk hasil profit 100 % oleh Pihak B. Jika Pihak A collapse / merugi Pihak B wajib melakukan ganti rugi dengan nilai yang sama kepada Pihak A.
 
-dengan nilai yang sama kepada Pihak A.
-
-4.2. Pihak A berhak tidak menambah nominal modal selama kontrak perjanjian kerja sama investasi ini berlaku yaitu {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+4.2. Pihak A berhak tidak menambah nominal modal selama kontrak perjanjian kerja sama investasi ini berlaku yaitu {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
 
 4.3. Pihak A berhak mendapatkan panduan investasi terbaik sebanyak 5 hingga 10 kali transaksi per harinya selama masa kontrak perjanjian kerja sama investasi ini berlaku.
 
-4.4. Pihak A wajib mengikuti panduan transaksi dengan benar oleh Pihak B. Jika melakukan transaksi investasi diluar panduan Pihak B
+4.4. Pihak A wajib mengikuti panduan transaksi dengan benar oleh Pihak B. Jika melakukan transaksi investasi diluar panduan Pihak B seluruh resiko hasil transaksi tersebut bukan tanggung jawab Pihak B.
 
-seluruh resiko hasil transaksi tersebut bukan tanggung jawab Pihak B.
-
-4.5. Pihak A wajib bayarkan komisi konsultasi sebanyak 30 % dari nilai profit transaksi investasi dan dibayarkan setelah transaksi investasi selesai dan 
-
-wajib Penarikan seluruh modal investasi dan hasil profit transaksi investasi setelah masa durasi kontrak kerja sama investasi selama {{DAY}} hari atau minimal {{NUMBER}} kali transaksi investasi.
+4.5. Pihak A wajib bayarkan komisi konsultasi sebanyak 30 % dari nilai profit transaksi investasi dan dibayarkan setelah transaksi investasi selesai dan wajib Penarikan seluruh modal investasi dan hasil profit transaksi investasi setelah masa durasi kontrak kerja sama investasi selama {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
 
 4.6. Pihak A menjamin bahwa dana yang digunakan berasal dari sumber yang sah dan dapat dipertanggung jawabkan.
 
@@ -306,13 +292,11 @@ wajib Penarikan seluruh modal investasi dan hasil profit transaksi investasi set
 
 5.10. Pihak B wajib berikan panduan dan jadwal transaksi investasi minimal 3 kali transaksi per harinya kepada pihak A.
 
-5.11. Pihak B berhak mengakhiri perjanjian jika Pihak A melakukan kecurangan pada akun investasi. 
+5.11. Pihak B berhak mengakhiri perjanjian jika Pihak A melakukan kecurangan pada akun investasi.
 
 5.12. Jika Pihak A melanggar hukum atau menyebabkan kerugian, Pihak B dapat menuntut ganti rugi dan menyelesaikan secara hukum yang berlaku di indonesia.
 
-5.13. Pihak B berhak tidak bertanggung jawab atas pembekuan seluruh aset / modal dan hasil profit investasi pihak A oleh Platform Tradestation, jika Pihak A melakukan penarikan berulang kali 
-
-selama masa durasi kontrak kerja sama investasi ini berlangsung / belum selesai.
+5.13. Pihak B berhak tidak bertanggung jawab atas pembekuan seluruh aset / modal dan hasil profit investasi pihak A oleh Platform Tradestation, jika Pihak A melakukan penarikan berulang kali selama masa durasi kontrak kerja sama investasi ini berlangsung / belum selesai.
 
 ## Pasal 6: Klausul Kerahasiaan
 
@@ -337,7 +321,7 @@ Prof. Bima Agung Rachel                           ( {{USER_NAME}} )
                     variables: [
                         'USER_NAME', 'USER_EMAIL', 'USER_PHONE', 'USER_ADDRESS', 'TRADING_ID', 
                         'CONTRACT_NUMBER', 'CONTRACT_DATE', 'AMOUNT', 'CONSULTATION_FEE', 
-                        'CONTRACT_PERIOD', 'DAY', 'NUMBER', 
+                        'CONTRACT_PERIOD', 'DURATION_DAYS', 'MIN_TRANSACTIONS', 
                         'PAYMENT_METHOD', 'PAYMENT_SCHEDULE', 'PAYMENT_TERMS', 'SIGNED_DATE'
                     ],
                     created_by: admin._id
@@ -354,15 +338,13 @@ Prof. Bima Agung Rachel                           ( {{USER_NAME}} )
 }
 
 // =====================
-// FUNGSI BANTUAN - Fungsi-fungsi kecil yang membantu
+// UTILITY FUNCTIONS
 // =====================
 
-// Membuat token akses unik
 function generateAccessToken() {
     return crypto.randomBytes(32).toString('hex');
 }
 
-// Membuat nomor kontrak unik
 function generateContractNumber() {
     const now = new Date();
     const year = now.getFullYear();
@@ -372,7 +354,6 @@ function generateContractNumber() {
     return `TSC${year}${month}${day}${random}`;
 }
 
-// Format uang ke Rupiah
 function formatCurrency(amount) {
     try {
         if (typeof amount !== 'number' || isNaN(amount)) {
@@ -391,7 +372,7 @@ function formatCurrency(amount) {
 }
 
 // =====================
-// MIDDLEWARE AUTENTIKASI - DIPINDAHKAN KE SINI (SEBELUM ROUTES)
+// MIDDLEWARE
 // =====================
 
 const authenticateToken = async (req, res, next) => {
@@ -425,7 +406,6 @@ const authenticateAdmin = async (req, res, next) => {
     next();
 };
 
-// Fungsi untuk mencatat aktivitas kontrak
 async function logContractActivity(contractId, action, description, userId = null, req = null) {
     try {
         await ContractHistory.create({
@@ -446,7 +426,7 @@ async function logContractActivity(contractId, action, description, userId = nul
 }
 
 // =====================
-// MEMBUAT PDF KONTRAK - DIPINDAHKAN KE SINI (SEBELUM ROUTES)
+// PDF GENERATION
 // =====================
 
 async function generateContractPDF(contract, user, signatureData) {
@@ -454,7 +434,6 @@ async function generateContractPDF(contract, user, signatureData) {
         try {
             console.log('🔄 Starting PDF generation for contract:', contract.number);
             
-            // Validasi input data
             if (!contract || !user) {
                 throw new Error('Contract atau user data tidak lengkap');
             }
@@ -474,7 +453,6 @@ async function generateContractPDF(contract, user, signatureData) {
             
             const buffers = [];
             
-            // Event handlers dengan error handling
             doc.on('data', (chunk) => {
                 buffers.push(chunk);
             });
@@ -495,7 +473,6 @@ async function generateContractPDF(contract, user, signatureData) {
                 reject(error);
             });
 
-            // Mulai membuat PDF
             console.log('📝 Adding content to PDF...');
 
             // HEADER
@@ -516,14 +493,14 @@ async function generateContractPDF(contract, user, signatureData) {
             
             doc.fillColor('black').moveDown(1);
             
-            // Garis pemisah
+            // Separator line
             doc.moveTo(50, doc.y)
                .lineTo(550, doc.y)
                .stroke();
             
             doc.moveDown(1);
             
-            // Judul kontrak
+            // Contract title
             doc.fontSize(14)
                .font('Helvetica-Bold')
                .text('PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI', { align: 'center' });
@@ -535,7 +512,7 @@ async function generateContractPDF(contract, user, signatureData) {
             
             doc.moveDown(1.5);
 
-            // Info kontrak dalam box
+            // Contract info box
             const infoY = doc.y;
             doc.rect(50, infoY, 500, 80).stroke();
             
@@ -554,12 +531,11 @@ async function generateContractPDF(contract, user, signatureData) {
             doc.y = infoY + 90;
             doc.moveDown(1);
 
-            // Konten kontrak
+            // Contract content
             console.log('📋 Processing contract content...');
             
             let content = contract.content || '';
             
-            // Jika tidak ada content, gunakan content default sederhana
             if (!content.trim()) {
                 content = `
 # PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI
@@ -576,7 +552,7 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                 `;
             }
             
-            // Replace variables dengan safe handling
+            // Replace variables
             const replacements = {
                 '{{USER_NAME}}': user.name || '[Nama User]',
                 '{{USER_EMAIL}}': user.email || '[Email User]',
@@ -617,7 +593,7 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                 });
             }
 
-            // Process content line by line dengan safety check
+            // Process content line by line
             const lines = content.split('\n');
             let lineCount = 0;
             
@@ -626,14 +602,12 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                     lineCount++;
                     const trimmedLine = line.trim();
                     
-                    // Safety check - jangan buat PDF terlalu panjang
                     if (lineCount > 500) {
                         doc.fontSize(10)
                            .text('... [Konten dipotong untuk mencegah error] ...', { align: 'center' });
                         break;
                     }
                     
-                    // Check if need new page
                     if (doc.y > 750) {
                         doc.addPage();
                     }
@@ -643,7 +617,6 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                         continue;
                     }
                     
-                    // Format different line types
                     if (trimmedLine.startsWith('# ')) {
                         doc.fontSize(12)
                            .font('Helvetica-Bold')
@@ -669,7 +642,6 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                            .stroke();
                         doc.moveDown(0.3);
                     } else {
-                        // Regular text
                         const processedLine = trimmedLine.replace(/\*\*(.*?)\*\*/g, '$1');
                         doc.fontSize(9)
                            .font('Helvetica')
@@ -681,14 +653,12 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                     }
                 } catch (lineError) {
                     console.warn(`⚠️ Error processing line ${lineCount}:`, lineError.message);
-                    // Skip this line and continue
                 }
             }
 
             // Signature section
             doc.addPage();
             
-            // Header untuk halaman tanda tangan
             doc.fontSize(16)
                .font('Helvetica-Bold')
                .text('HALAMAN PENANDATANGANAN', { align: 'center' });
@@ -704,10 +674,8 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                 doc.fillColor('black');
                 doc.moveDown(2);
                 
-                // Tanda tangan area
                 const signY = doc.y;
                 
-                // Kolom kiri - Pihak B
                 doc.fontSize(10)
                    .font('Helvetica-Bold')
                    .text('Perwakilan Pihak B:', 80, signY);
@@ -716,7 +684,6 @@ Kontrak ini sah dan mengikat kedua belah pihak.
                    .font('Helvetica')
                    .text('Prof. Bima Agung Rachel', 80, signY + 60);
                 
-                // Kolom kanan - Pihak A
                 doc.fontSize(10)
                    .font('Helvetica-Bold')
                    .text('Pihak A:', 350, signY);
@@ -754,10 +721,10 @@ Kontrak ini sah dan mengikat kedua belah pihak.
 }
 
 // =====================
-// ROUTES/ENDPOINT - Ini adalah alamat-alamat yang bisa diakses
+// ROUTES
 // =====================
 
-// Cek kesehatan server
+// Health check
 app.get('/api/health', async (req, res) => {
     try {
         await mongoose.connection.db.admin().ping();
@@ -769,19 +736,7 @@ app.get('/api/health', async (req, res) => {
             environment: process.env.NODE_ENV || 'development',
             mongodb: 'MongoDB Atlas',
             uptime: process.uptime(),
-            version: '2.1.0',
-            features: [
-                'Sistem Kontrak Digital Lengkap',
-                'Generasi PDF Lanjutan',
-                'Dukungan Tanda Tangan Digital',
-                'Manajemen Template',
-                'Manajemen User',
-                'Audit Trail',
-                'Statistik Real-time',
-                'Edit Template & User',
-                'Preview Template',
-                'Detail Kontrak'
-            ]
+            version: '2.2.0'
         });
     } catch (error) {
         res.status(503).json({
@@ -794,7 +749,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // =====================
-// ROUTES LOGIN - Untuk masuk ke sistem
+// AUTH ROUTES
 // =====================
 
 app.post('/api/auth/login', async (req, res) => {
@@ -870,7 +825,7 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
 });
 
 // =====================
-// ROUTES AKSES KONTRAK (PUBLIK) - User dapat akses tanpa login
+// PUBLIC CONTRACT ACCESS
 // =====================
 
 app.get('/api/contracts/access/:token', async (req, res) => {
@@ -895,7 +850,6 @@ app.get('/api/contracts/access/:token', async (req, res) => {
             return res.status(410).json({ error: 'Kontrak sudah kedaluwarsa' });
         }
 
-        // Update status dilihat jika pertama kali
         if (contract.status === 'sent') {
             await Contract.findByIdAndUpdate(contract._id, { 
                 status: 'viewed',
@@ -907,7 +861,6 @@ app.get('/api/contracts/access/:token', async (req, res) => {
         let content = contract.template_id?.content || contract.content || '';
         const variables = contract.variables || {};
         
-        // Mengganti variabel sistem
         const replacements = {
             '{{USER_NAME}}': contract.user_id.name,
             '{{USER_EMAIL}}': contract.user_id.email || '',
@@ -924,7 +877,6 @@ app.get('/api/contracts/access/:token', async (req, res) => {
             content = content.replace(regex, replacements[key]);
         });
 
-        // Mengganti variabel kustom
         Object.keys(variables).forEach(key => {
             const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
             content = content.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
@@ -981,7 +933,6 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
             return res.status(400).json({ error: 'Kontrak belum siap untuk ditandatangani' });
         }
 
-        // Validasi informasi klien jika ada
         if (clientName && clientName.toLowerCase() !== contract.user_id.name.toLowerCase()) {
             return res.status(400).json({ error: 'Nama klien tidak cocok dengan kontrak' });
         }
@@ -1023,7 +974,7 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
 });
 
 // =====================
-// ENDPOINT DOWNLOAD PDF - VERSI PERBAIKAN (TANPA DUPLIKASI)
+// DOWNLOAD PDF ENDPOINT
 // =====================
 
 app.get('/api/contracts/download/:contractId', async (req, res) => {
@@ -1032,13 +983,11 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
         
         console.log('📥 Download request for contract:', contractId);
 
-        // Validasi ID
         if (!contractId || !mongoose.Types.ObjectId.isValid(contractId)) {
             console.log('❌ Invalid contract ID:', contractId);
             return res.status(400).json({ error: 'ID kontrak tidak valid' });
         }
 
-        // Cari kontrak
         const contract = await Contract.findById(contractId)
             .populate('user_id', 'name email phone trading_account')
             .lean();
@@ -1061,7 +1010,6 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
             amount: contract.amount
         });
 
-        // Generate PDF dengan timeout protection
         console.log('🔄 Starting PDF generation...');
         
         const timeoutPromise = new Promise((_, reject) =>
@@ -1073,12 +1021,11 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
         const pdfBuffer = await Promise.race([pdfPromise, timeoutPromise]);
 
         if (!pdfBuffer || pdfBuffer.length === 0) {
-            throw new Error('PDF buffer kosong atau tidak valid');
+            throw new Error('File PDF kosong atau tidak valid');
         }
 
         console.log('✅ PDF generated successfully, size:', pdfBuffer.length);
 
-        // Log activity (non-blocking)
         logContractActivity(
             contract._id,
             'downloaded',
@@ -1087,7 +1034,6 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
             req
         ).catch(err => console.warn('⚠️ Failed to log activity:', err.message));
 
-        // Buat filename yang aman
         const safeName = (contract.user_id.name || 'User')
             .replace(/[^a-zA-Z0-9\s]/g, '')
             .replace(/\s+/g, '_')
@@ -1095,7 +1041,6 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
         
         const filename = `Kontrak_${contract.number}_${safeName}.pdf`;
 
-        // Set response headers
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Length', pdfBuffer.length);
@@ -1125,10 +1070,7 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
     }
 });
 
-// =====================
-// ENDPOINT TEST PDF - SEKARANG BISA MENGGUNAKAN authenticateToken
-// =====================
-
+// Test PDF endpoint
 app.get('/api/contracts/:contractId/test-pdf', authenticateToken, async (req, res) => {
     try {
         const { contractId } = req.params;
@@ -1141,7 +1083,6 @@ app.get('/api/contracts/:contractId/test-pdf', authenticateToken, async (req, re
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        // Test data untuk debugging
         const testData = {
             contract: {
                 id: contract._id,
@@ -1177,7 +1118,7 @@ app.get('/api/contracts/:contractId/test-pdf', authenticateToken, async (req, re
 });
 
 // =====================
-// ROUTES MANAJEMEN KONTRAK ADMIN
+// CONTRACT MANAGEMENT ROUTES
 // =====================
 
 app.get('/api/contracts', authenticateToken, async (req, res) => {
@@ -1245,13 +1186,11 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
             return res.status(400).json({ error: 'Field yang wajib: title, templateId, userId, amount' });
         }
 
-        // Validasi user ada
         const user = await User.findById(userId);
         if (!user) {
             return res.status(404).json({ error: 'User tidak ditemukan' });
         }
 
-        // Validasi template ada
         const template = await Template.findById(templateId);
         if (!template) {
             return res.status(404).json({ error: 'Template tidak ditemukan' });
@@ -1305,55 +1244,6 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res
     }
 });
 
-app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { title, amount, variables, status, adminNotes, expiryDate, content } = req.body;
-        
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'ID kontrak tidak valid' });
-        }
-
-        const contract = await Contract.findById(id);
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        if (contract.status === 'signed') {
-            return res.status(400).json({ error: 'Tidak dapat mengubah kontrak yang sudah ditandatangani' });
-        }
-
-        const updateData = {};
-        if (title) updateData.title = title.trim();
-        if (amount !== undefined) updateData.amount = parseFloat(amount);
-        if (variables) updateData.variables = { ...contract.variables, ...variables };
-        if (status) updateData.status = status;
-        if (adminNotes !== undefined) updateData.admin_notes = adminNotes.trim();
-        if (expiryDate) updateData.expiry_date = new Date(expiryDate);
-        if (content) updateData.content = content.trim();
-
-        const updatedContract = await Contract.findByIdAndUpdate(id, updateData, { new: true })
-            .populate('user_id', 'name email')
-            .populate('template_id', 'name');
-
-        await logContractActivity(
-            contract._id,
-            'updated',
-            `Kontrak diupdate oleh admin ${req.user.name}`,
-            req.user._id,
-            req
-        );
-
-        res.json({
-            message: 'Kontrak berhasil diupdate',
-            data: updatedContract
-        });
-    } catch (error) {
-        console.error('Error update kontrak:', error);
-        res.status(500).json({ error: 'Gagal mengupdate kontrak' });
-    }
-});
-
 app.get('/api/contracts/:id/detail', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
@@ -1371,16 +1261,13 @@ app.get('/api/contracts/:id/detail', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        // Cek hak akses
         if (req.user.role !== 'admin' && contract.user_id._id.toString() !== req.user._id.toString()) {
             return res.status(403).json({ error: 'Akses ditolak' });
         }
 
-        // Dapatkan konten yang sudah diproses
         let processedContent = contract.template_id?.content || contract.content || '';
         const variables = contract.variables || {};
         
-        // Ganti variabel sistem
         const replacements = {
             '{{USER_NAME}}': contract.user_id.name,
             '{{USER_EMAIL}}': contract.user_id.email || '',
@@ -1397,7 +1284,6 @@ app.get('/api/contracts/:id/detail', authenticateToken, async (req, res) => {
             processedContent = processedContent.replace(regex, replacements[key]);
         });
 
-        // Ganti variabel kustom
         Object.keys(variables).forEach(key => {
             const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
             processedContent = processedContent.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
@@ -1427,40 +1313,6 @@ app.get('/api/contracts/:id/detail', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Error mendapatkan detail kontrak:', error);
         res.status(500).json({ error: 'Gagal mendapatkan detail kontrak' });
-    }
-});
-
-app.delete('/api/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'ID kontrak tidak valid' });
-        }
-
-        const contract = await Contract.findById(id);
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        if (contract.status === 'signed') {
-            return res.status(400).json({ error: 'Tidak dapat menghapus kontrak yang sudah ditandatangani' });
-        }
-
-        await Contract.findByIdAndUpdate(id, { status: 'cancelled' });
-
-        await logContractActivity(
-            contract._id,
-            'cancelled',
-            `Kontrak dibatalkan oleh admin ${req.user.name}`,
-            req.user._id,
-            req
-        );
-
-        res.json({ message: 'Kontrak berhasil dibatalkan' });
-    } catch (error) {
-        console.error('Error menghapus kontrak:', error);
-        res.status(500).json({ error: 'Gagal membatalkan kontrak' });
     }
 });
 
@@ -1506,7 +1358,7 @@ app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmi
 });
 
 // =====================
-// ROUTES MANAJEMEN TEMPLATE
+// TEMPLATE MANAGEMENT ROUTES
 // =====================
 
 app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res) => {
@@ -1547,7 +1399,6 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res
             return res.status(400).json({ error: 'Nama dan konten harus diisi' });
         }
         
-        // Ekstrak variabel dari konten
         const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
         const variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
         
@@ -1594,7 +1445,6 @@ app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, 
         
         if (content) {
             updateData.content = content.trim();
-            // Ekstrak ulang variabel
             const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
             updateData.variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
             updateData.version = template.version + 1;
@@ -1639,42 +1489,8 @@ app.get('/api/templates/:id/detail', authenticateToken, authenticateAdmin, async
     }
 });
 
-app.delete('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'ID template tidak valid' });
-        }
-
-        const template = await Template.findById(id);
-        if (!template) {
-            return res.status(404).json({ error: 'Template tidak ditemukan' });
-        }
-
-        // Cek apakah template sedang digunakan
-        const contractsUsingTemplate = await Contract.countDocuments({ 
-            template_id: id,
-            status: { $nin: ['cancelled'] }
-        });
-
-        if (contractsUsingTemplate > 0) {
-            return res.status(400).json({ 
-                error: `Tidak dapat menghapus template. Sedang digunakan oleh ${contractsUsingTemplate} kontrak` 
-            });
-        }
-
-        await Template.findByIdAndUpdate(id, { is_active: false });
-
-        res.json({ message: 'Template berhasil dihapus' });
-    } catch (error) {
-        console.error('Error menghapus template:', error);
-        res.status(500).json({ error: 'Gagal menghapus template' });
-    }
-});
-
 // =====================
-// ROUTES MANAJEMEN USER
+// USER MANAGEMENT ROUTES
 // =====================
 
 app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => {
@@ -1699,7 +1515,6 @@ app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => 
             .skip(skip)
             .limit(parseInt(limit));
 
-        // Dapatkan jumlah kontrak untuk setiap user
         const usersWithStats = await Promise.all(users.map(async (user) => {
             const contractCount = await Contract.countDocuments({ user_id: user._id });
             return {
@@ -1828,7 +1643,6 @@ app.get('/api/users/:id/detail', authenticateToken, authenticateAdmin, async (re
             return res.status(404).json({ error: 'User tidak ditemukan' });
         }
 
-        // Dapatkan statistik kontrak user
         const contractStats = await Contract.aggregate([
             { $match: { user_id: mongoose.Types.ObjectId(id) } },
             { 
@@ -1854,7 +1668,7 @@ app.get('/api/users/:id/detail', authenticateToken, authenticateAdmin, async (re
 });
 
 // =====================
-// ROUTES STATISTIK DASHBOARD
+// DASHBOARD STATS
 // =====================
 
 app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
@@ -1921,228 +1735,7 @@ app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
 });
 
 // =====================
-// ROUTES RIWAYAT KONTRAK
-// =====================
-
-app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'ID kontrak tidak valid' });
-        }
-
-        const contract = await Contract.findById(id);
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        // Cek hak akses
-        if (req.user.role !== 'admin' && contract.user_id.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ error: 'Akses ditolak' });
-        }
-
-        const history = await ContractHistory.find({ contract_id: id })
-            .populate('performed_by', 'name email')
-            .sort({ createdAt: -1 });
-
-        res.json({ data: history });
-    } catch (error) {
-        console.error('Error mendapatkan riwayat kontrak:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan riwayat kontrak' });
-    }
-});
-
-// =====================
-// ADDITIONAL ROUTES FOR ENHANCED FEATURES
-// =====================
-
-// Route untuk reset password user (admin only)
-app.post('/api/users/:id/reset-password', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { newPassword } = req.body;
-        
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'ID user tidak valid' });
-        }
-
-        const user = await User.findById(id);
-        if (!user) {
-            return res.status(404).json({ error: 'User tidak ditemukan' });
-        }
-
-        const passwordToUse = newPassword || 'trader123';
-        const hashedPassword = await bcrypt.hash(passwordToUse, 12);
-
-        await User.findByIdAndUpdate(id, { password: hashedPassword });
-
-        res.json({
-            message: 'Password berhasil direset',
-            newPassword: passwordToUse
-        });
-    } catch (error) {
-        console.error('Error reset password:', error);
-        res.status(500).json({ error: 'Gagal reset password' });
-    }
-});
-
-// Route untuk export data kontrak
-app.get('/api/contracts/export', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { format = 'json', status, user_id, start_date, end_date } = req.query;
-        
-        let query = {};
-        if (status) query.status = status;
-        if (user_id) query.user_id = user_id;
-        if (start_date || end_date) {
-            query.createdAt = {};
-            if (start_date) query.createdAt.$gte = new Date(start_date);
-            if (end_date) query.createdAt.$lte = new Date(end_date);
-        }
-
-        const contracts = await Contract.find(query)
-            .populate('user_id', 'name email phone trading_account')
-            .populate('template_id', 'name')
-            .populate('created_by', 'name')
-            .sort({ createdAt: -1 });
-
-        const exportData = contracts.map(contract => ({
-            number: contract.number,
-            title: contract.title,
-            user_name: contract.user_id?.name,
-            user_email: contract.user_id?.email,
-            amount: contract.amount,
-            status: contract.status,
-            created_at: contract.createdAt,
-            signed_at: contract.signed_at,
-            template_name: contract.template_id?.name,
-            created_by: contract.created_by?.name
-        }));
-
-        if (format === 'csv') {
-            // Convert to CSV
-            const csvHeaders = 'Number,Title,User Name,User Email,Amount,Status,Created At,Signed At,Template,Created By\n';
-            const csvRows = exportData.map(row => 
-                [
-                    row.number,
-                    `"${row.title}"`,
-                    `"${row.user_name}"`,
-                    row.user_email,
-                    row.amount,
-                    row.status,
-                    row.created_at,
-                    row.signed_at || '',
-                    `"${row.template_name || ''}"`,
-                    `"${row.created_by || ''}"`
-                ].join(',')
-            ).join('\n');
-
-            res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', `attachment; filename="contracts_export_${new Date().toISOString().split('T')[0]}.csv"`);
-            res.send(csvHeaders + csvRows);
-        } else {
-            res.json({
-                data: exportData,
-                total: exportData.length,
-                exported_at: new Date().toISOString()
-            });
-        }
-    } catch (error) {
-        console.error('Error export kontrak:', error);
-        res.status(500).json({ error: 'Gagal export kontrak' });
-    }
-});
-
-// Route untuk duplicate template
-app.post('/api/templates/:id/duplicate', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        if (!mongoose.Types.ObjectId.isValid(id)) {
-            return res.status(400).json({ error: 'ID template tidak valid' });
-        }
-
-        const originalTemplate = await Template.findById(id);
-        if (!originalTemplate) {
-            return res.status(404).json({ error: 'Template tidak ditemukan' });
-        }
-
-        const duplicatedTemplate = await Template.create({
-            name: `${originalTemplate.name} (Copy)`,
-            category: originalTemplate.category,
-            content: originalTemplate.content,
-            description: originalTemplate.description,
-            variables: originalTemplate.variables,
-            created_by: req.user._id
-        });
-
-        res.json({
-            message: 'Template berhasil diduplikasi',
-            data: duplicatedTemplate
-        });
-    } catch (error) {
-        console.error('Error duplicate template:', error);
-        res.status(500).json({ error: 'Gagal menduplikasi template' });
-    }
-});
-
-// Route untuk bulk operations
-app.post('/api/contracts/bulk-action', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { action, contract_ids } = req.body;
-        
-        if (!action || !contract_ids || !Array.isArray(contract_ids)) {
-            return res.status(400).json({ error: 'Action dan contract_ids diperlukan' });
-        }
-
-        let updateData = {};
-        let actionDescription = '';
-
-        switch (action) {
-            case 'cancel':
-                updateData = { status: 'cancelled' };
-                actionDescription = 'dibatalkan secara bulk';
-                break;
-            case 'send':
-                updateData = { status: 'sent', sent_at: new Date() };
-                actionDescription = 'dikirim secara bulk';
-                break;
-            default:
-                return res.status(400).json({ error: 'Action tidak valid' });
-        }
-
-        const result = await Contract.updateMany(
-            { 
-                _id: { $in: contract_ids },
-                status: { $nin: ['signed', 'completed'] }
-            },
-            updateData
-        );
-
-        // Log activity for each contract
-        for (const contractId of contract_ids) {
-            await logContractActivity(
-                contractId,
-                action,
-                `Kontrak ${actionDescription} oleh admin ${req.user.name}`,
-                req.user._id,
-                req
-            );
-        }
-
-        res.json({
-            message: `${result.modifiedCount} kontrak berhasil ${actionDescription}`,
-            modified_count: result.modifiedCount
-        });
-    } catch (error) {
-        console.error('Error bulk action:', error);
-        res.status(500).json({ error: 'Gagal melakukan bulk action' });
-    }
-});
-
-// =====================
-// ERROR HANDLING - Menangani error
+// ERROR HANDLING
 // =====================
 
 app.use((req, res) => {
@@ -2165,7 +1758,7 @@ app.use((error, req, res, next) => {
 });
 
 // =====================
-// GRACEFUL SHUTDOWN - Matikan server dengan aman
+// GRACEFUL SHUTDOWN
 // =====================
 
 process.on('SIGTERM', async () => {
@@ -2181,7 +1774,7 @@ process.on('SIGINT', async () => {
 });
 
 // =====================
-// START SERVER - Memulai server
+// START SERVER
 // =====================
 
 async function startServer() {
@@ -2189,18 +1782,11 @@ async function startServer() {
         await connectDatabase();
         
         const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 TradeStation Digital Contract Server v2.1.0`);
+            console.log(`🚀 TradeStation Digital Contract Server v2.2.0`);
             console.log(`📱 Server berjalan di port ${PORT}`);
             console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
             console.log(`💾 Database: MongoDB Atlas Terhubung`);
-            console.log(`✅ Fitur: Sistem Kontrak Digital Lengkap`);
-            console.log(`🎯 Siap menangani permintaan!`);
-            console.log(`📋 Perbaikan yang telah dilakukan:`);
-            console.log(`   - ✅ MIDDLEWARE ORDER FIXED - authenticateToken sekarang di atas routes`);
-            console.log(`   - ✅ PDF GENERATION FIXED - generateContractPDF dipindah ke posisi yang benar`);
-            console.log(`   - ✅ NO DUPLICATION - hanya 1 endpoint download PDF yang diperbaiki`);
-            console.log(`   - ✅ ENHANCED ERROR HANDLING - timeout dan logging lengkap`);
-            console.log(`   - ✅ CLEAN STRUCTURE - urutan kode yang benar dan konsisten`);
+            console.log(`✅ Semua fitur berfungsi dengan baik!`);
         });
 
         server.on('error', (error) => {
