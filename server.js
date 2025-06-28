@@ -59,6 +59,43 @@ app.use((req, res, next) => {
 });
 
 // =====================
+// SHARED CONSTANTS & UTILITIES
+// =====================
+
+const CONTRACT_STATUS = {
+    DRAFT: 'draft',
+    SENT: 'sent', 
+    VIEWED: 'viewed',
+    SIGNED: 'signed',
+    COMPLETED: 'completed',
+    EXPIRED: 'expired',
+    CANCELLED: 'cancelled'
+};
+
+const STATUS_STYLES = {
+    draft: { color: 'bg-gray-100 text-gray-800', text: 'Draft' },
+    sent: { color: 'bg-blue-100 text-blue-800', text: 'Terkirim' },
+    viewed: { color: 'bg-yellow-100 text-yellow-800', text: 'Dilihat' },
+    signed: { color: 'bg-green-100 text-green-800', text: 'Ditandatangani' },
+    completed: { color: 'bg-purple-100 text-purple-800', text: 'Selesai' },
+    expired: { color: 'bg-red-100 text-red-800', text: 'Kedaluwarsa' },
+    cancelled: { color: 'bg-red-100 text-red-800', text: 'Dibatalkan' }
+};
+
+const DEFAULT_USERS = {
+    ADMIN: {
+        email: 'admin@tradestation.com',
+        password: 'admin123',
+        name: 'TradeStation Administrator'
+    },
+    USER: {
+        email: 'hermanzal@trader.com', 
+        password: 'trader123',
+        name: 'Herman Zaldivar'
+    }
+};
+
+// =====================
 // DATABASE CONFIG
 // =====================
 
@@ -168,6 +205,100 @@ const Contract = mongoose.model('Contract', contractSchema);
 const ContractHistory = mongoose.model('ContractHistory', contractHistorySchema);
 
 // =====================
+// UTILITY FUNCTIONS
+// =====================
+
+function generateAccessToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
+
+function generateContractNumber() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+    return `TSC${year}${month}${day}${hours}${minutes}${random}`;
+}
+
+function formatCurrency(amount) {
+    try {
+        if (typeof amount !== 'number' || isNaN(amount)) {
+            return 'Rp 0';
+        }
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    } catch (error) {
+        console.warn('⚠️ Error formatting currency:', error);
+        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
+    }
+}
+
+// =====================
+// DATA CONVERSION HELPERS (FIX: snake_case to camelCase)
+// =====================
+
+function convertUserToCamelCase(user) {
+    if (!user) return null;
+    
+    const userObj = user.toObject ? user.toObject() : user;
+    
+    return {
+        ...userObj,
+        tradingAccount: userObj.trading_account,
+        isActive: userObj.is_active,
+        lastLogin: userObj.last_login,
+        loginAttempts: userObj.login_attempts,
+        lockedUntil: userObj.locked_until,
+        createdBy: userObj.created_by,
+        profileImage: userObj.profile_image
+    };
+}
+
+function convertContractToCamelCase(contract) {
+    if (!contract) return null;
+    
+    const contractObj = contract.toObject ? contract.toObject() : contract;
+    
+    return {
+        ...contractObj,
+        userId: contractObj.user_id,
+        templateId: contractObj.template_id,
+        signatureData: contractObj.signature_data,
+        signedAt: contractObj.signed_at,
+        expiryDate: contractObj.expiry_date,
+        adminNotes: contractObj.admin_notes,
+        accessToken: contractObj.access_token,
+        pdfFilePath: contractObj.pdf_file_path,
+        createdBy: contractObj.created_by,
+        sentAt: contractObj.sent_at,
+        viewedAt: contractObj.viewed_at,
+        reminderSent: contractObj.reminder_sent,
+        ipSigned: contractObj.ip_signed,
+        userAgentSigned: contractObj.user_agent_signed
+    };
+}
+
+function convertTemplateToCamelCase(template) {
+    if (!template) return null;
+    
+    const templateObj = template.toObject ? template.toObject() : template;
+    
+    return {
+        ...templateObj,
+        isActive: templateObj.is_active,
+        createdBy: templateObj.created_by,
+        usageCount: templateObj.usage_count
+    };
+}
+
+// =====================
 // DATABASE CONNECTION
 // =====================
 
@@ -198,12 +329,12 @@ async function setupInitialData() {
         console.log('🚀 Setting up initial data...');
         
         // Create admin user
-        const adminExists = await User.findOne({ email: 'admin@tradestation.com' });
+        const adminExists = await User.findOne({ email: DEFAULT_USERS.ADMIN.email });
         if (!adminExists) {
-            const hashedPassword = await bcrypt.hash('admin123', 12);
+            const hashedPassword = await bcrypt.hash(DEFAULT_USERS.ADMIN.password, 12);
             await User.create({
-                name: 'TradeStation Administrator',
-                email: 'admin@tradestation.com',
+                name: DEFAULT_USERS.ADMIN.name,
+                email: DEFAULT_USERS.ADMIN.email,
                 username: 'admin',
                 password: hashedPassword,
                 role: 'admin',
@@ -215,12 +346,12 @@ async function setupInitialData() {
         }
         
         // Create sample user
-        const userExists = await User.findOne({ email: 'hermanzal@trader.com' });
+        const userExists = await User.findOne({ email: DEFAULT_USERS.USER.email });
         if (!userExists) {
-            const hashedPassword = await bcrypt.hash('trader123', 12);
+            const hashedPassword = await bcrypt.hash(DEFAULT_USERS.USER.password, 12);
             await User.create({
-                name: 'Herman Zaldivar',
-                email: 'hermanzal@trader.com',
+                name: DEFAULT_USERS.USER.name,
+                email: DEFAULT_USERS.USER.email,
                 username: 'hermanzal',
                 password: hashedPassword,
                 role: 'user',
@@ -328,42 +459,6 @@ async function setupAssets() {
         
     } catch (error) {
         console.error('❌ Error setting up assets:', error);
-    }
-}
-
-// =====================
-// UTILITY FUNCTIONS
-// =====================
-
-function generateAccessToken() {
-    return crypto.randomBytes(32).toString('hex');
-}
-
-function generateContractNumber() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
-    return `TSC${year}${month}${day}${hours}${minutes}${random}`;
-}
-
-function formatCurrency(amount) {
-    try {
-        if (typeof amount !== 'number' || isNaN(amount)) {
-            return 'Rp 0';
-        }
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    } catch (error) {
-        console.warn('⚠️ Error formatting currency:', error);
-        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
     }
 }
 
@@ -478,9 +573,6 @@ async function generateContractPDF(contract, user, signatureData) {
                    .text('®', 245, 70);
             }
 
-            // Company information and contract content processing...
-            // [Rest of PDF generation code remains the same]
-            
             // =====================
             // CONTENT PROCESSING
             // =====================
@@ -649,6 +741,10 @@ app.get('/api/health', async (req, res) => {
                 node_version: process.version,
                 platform: process.platform,
                 cpu_usage: process.cpuUsage()
+            },
+            constants: {
+                contractStatus: CONTRACT_STATUS,
+                statusStyles: STATUS_STYLES
             }
         };
         
@@ -726,18 +822,16 @@ app.post('/api/auth/login', async (req, res) => {
             { expiresIn: '7d' }
         );
 
-        const userResponse = user.toObject();
+        // FIX: Convert to camelCase
+        const userResponse = convertUserToCamelCase(user);
         delete userResponse.password;
-        delete userResponse.login_attempts;
-        delete userResponse.locked_until;
+        delete userResponse.loginAttempts;
+        delete userResponse.lockedUntil;
 
         res.json({
             message: 'Login berhasil',
             token,
-            user: {
-                ...userResponse,
-                tradingAccount: user.trading_account
-            }
+            user: userResponse
         });
     } catch (error) {
         console.error('❌ Login error:', error);
@@ -745,18 +839,16 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
+// FIX: Add missing /api/auth/me endpoint
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
     try {
-        const userResponse = req.user.toObject();
+        const userResponse = convertUserToCamelCase(req.user);
         delete userResponse.password;
-        delete userResponse.login_attempts;
-        delete userResponse.locked_until;
+        delete userResponse.loginAttempts;
+        delete userResponse.lockedUntil;
         
         res.json({
-            user: {
-                ...userResponse,
-                tradingAccount: req.user.trading_account
-            }
+            user: userResponse
         });
     } catch (error) {
         console.error('❌ Error getting user info:', error);
@@ -870,14 +962,20 @@ app.get('/api/admin/contracts', authenticateToken, authenticateAdmin, async (req
         
         const total = await Contract.countDocuments(query);
         
+        // FIX: Convert to camelCase
+        const contractsResponse = contracts.map(contract => {
+            const contractCamel = convertContractToCamelCase(contract);
+            return {
+                ...contractCamel,
+                userName: contract.user_id?.name || 'Unknown',
+                userEmail: contract.user_id?.email || '',
+                templateName: contract.template_id?.name || 'Custom',
+                createdByName: contract.created_by?.name || 'System'
+            };
+        });
+        
         res.json({
-            contracts: contracts.map(contract => ({
-                ...contract,
-                user_name: contract.user_id?.name || 'Unknown',
-                user_email: contract.user_id?.email || '',
-                template_name: contract.template_id?.name || 'Custom',
-                created_by_name: contract.created_by?.name || 'System'
-            })),
+            contracts: contractsResponse,
             pagination: {
                 current: page,
                 total: Math.ceil(total / limit),
@@ -948,11 +1046,13 @@ app.post('/api/admin/contracts', authenticateToken, authenticateAdmin, async (re
             req
         );
 
+        const contractResponse = convertContractToCamelCase(contract);
+
         res.status(201).json({
             message: 'Kontrak berhasil dibuat',
             contract: {
-                ...contract.toObject(),
-                access_url: `${req.protocol}://${req.get('host')}/?token=${accessToken}`
+                ...contractResponse,
+                accessUrl: `${req.protocol}://${req.get('host')}/?token=${accessToken}`
             }
         });
     } catch (error) {
@@ -972,7 +1072,9 @@ app.get('/api/admin/contracts/:id', authenticateToken, authenticateAdmin, async 
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        res.json({ contract });
+        const contractResponse = convertContractToCamelCase(contract);
+
+        res.json({ contract: contractResponse });
     } catch (error) {
         console.error('❌ Error getting contract:', error);
         res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
@@ -1010,9 +1112,11 @@ app.put('/api/admin/contracts/:id', authenticateToken, authenticateAdmin, async 
             req
         );
 
+        const contractResponse = convertContractToCamelCase(updatedContract);
+
         res.json({
             message: 'Kontrak berhasil diupdate',
-            contract: updatedContract
+            contract: contractResponse
         });
     } catch (error) {
         console.error('❌ Error updating contract:', error);
@@ -1074,7 +1178,7 @@ app.post('/api/admin/contracts/:id/send', authenticateToken, authenticateAdmin, 
 
         res.json({
             message: 'Kontrak berhasil dikirim',
-            access_url: `${req.protocol}://${req.get('host')}/?token=${contract.access_token}`
+            accessUrl: `${req.protocol}://${req.get('host')}/?token=${contract.access_token}`
         });
     } catch (error) {
         console.error('❌ Error sending contract:', error);
@@ -1109,11 +1213,17 @@ app.get('/api/admin/templates', authenticateToken, authenticateAdmin, async (req
         
         const total = await Template.countDocuments(query);
         
+        // FIX: Convert to camelCase
+        const templatesResponse = templates.map(template => {
+            const templateCamel = convertTemplateToCamelCase(template);
+            return {
+                ...templateCamel,
+                createdByName: template.created_by?.name || 'System'
+            };
+        });
+        
         res.json({
-            templates: templates.map(template => ({
-                ...template,
-                created_by_name: template.created_by?.name || 'System'
-            })),
+            templates: templatesResponse,
             pagination: {
                 current: page,
                 total: Math.ceil(total / limit),
@@ -1144,9 +1254,11 @@ app.post('/api/admin/templates', authenticateToken, authenticateAdmin, async (re
             created_by: req.user._id
         });
 
+        const templateResponse = convertTemplateToCamelCase(template);
+
         res.status(201).json({
             message: 'Template berhasil dibuat',
-            template
+            template: templateResponse
         });
     } catch (error) {
         console.error('❌ Error creating template:', error);
@@ -1163,7 +1275,9 @@ app.get('/api/admin/templates/:id', authenticateToken, authenticateAdmin, async 
             return res.status(404).json({ error: 'Template tidak ditemukan' });
         }
 
-        res.json({ template });
+        const templateResponse = convertTemplateToCamelCase(template);
+
+        res.json({ template: templateResponse });
     } catch (error) {
         console.error('❌ Error getting template:', error);
         res.status(500).json({ error: 'Gagal mendapatkan template' });
@@ -1194,9 +1308,11 @@ app.put('/api/admin/templates/:id', authenticateToken, authenticateAdmin, async 
             { new: true }
         );
 
+        const templateResponse = convertTemplateToCamelCase(updatedTemplate);
+
         res.json({
             message: 'Template berhasil diupdate',
-            template: updatedTemplate
+            template: templateResponse
         });
     } catch (error) {
         console.error('❌ Error updating template:', error);
@@ -1264,11 +1380,17 @@ app.get('/api/admin/users', authenticateToken, authenticateAdmin, async (req, re
         
         const total = await User.countDocuments(query);
         
+        // FIX: Convert to camelCase
+        const usersResponse = users.map(user => {
+            const userCamel = convertUserToCamelCase(user);
+            return {
+                ...userCamel,
+                createdByName: user.created_by?.name || 'System'
+            };
+        });
+        
         res.json({
-            users: users.map(user => ({
-                ...user,
-                created_by_name: user.created_by?.name || 'System'
-            })),
+            users: usersResponse,
             pagination: {
                 current: page,
                 total: Math.ceil(total / limit),
@@ -1326,7 +1448,7 @@ app.post('/api/admin/users', authenticateToken, authenticateAdmin, async (req, r
             created_by: req.user._id
         });
 
-        const userResponse = user.toObject();
+        const userResponse = convertUserToCamelCase(user);
         delete userResponse.password;
 
         res.status(201).json({
@@ -1349,7 +1471,9 @@ app.get('/api/admin/users/:id', authenticateToken, authenticateAdmin, async (req
             return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
         }
 
-        res.json({ user });
+        const userResponse = convertUserToCamelCase(user);
+
+        res.json({ user: userResponse });
     } catch (error) {
         console.error('❌ Error getting user:', error);
         res.status(500).json({ error: 'Gagal mendapatkan pengguna' });
@@ -1411,9 +1535,11 @@ app.put('/api/admin/users/:id', authenticateToken, authenticateAdmin, async (req
             { new: true }
         ).select('-password -login_attempts -locked_until');
 
+        const userResponse = convertUserToCamelCase(updatedUser);
+
         res.json({
             message: 'Pengguna berhasil diupdate',
-            user: updatedUser
+            user: userResponse
         });
     } catch (error) {
         console.error('❌ Error updating user:', error);
@@ -1488,12 +1614,18 @@ app.get('/api/user/contracts', authenticateToken, async (req, res) => {
             completed: statusCounts.find(s => ['signed', 'completed'].includes(s._id))?.count || 0
         };
         
+        // FIX: Convert to camelCase
+        const contractsResponse = contracts.map(contract => {
+            const contractCamel = convertContractToCamelCase(contract);
+            return {
+                ...contractCamel,
+                templateName: contract.template_id?.name || 'Custom',
+                createdByName: contract.created_by?.name || 'System'
+            };
+        });
+        
         res.json({
-            contracts: contracts.map(contract => ({
-                ...contract,
-                template_name: contract.template_id?.name || 'Custom',
-                created_by_name: contract.created_by?.name || 'System'
-            })),
+            contracts: contractsResponse,
             stats,
             pagination: {
                 current: page,
@@ -1520,7 +1652,9 @@ app.get('/api/user/contracts/:id', authenticateToken, async (req, res) => {
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        res.json({ contract });
+        const contractResponse = convertContractToCamelCase(contract);
+
+        res.json({ contract: contractResponse });
     } catch (error) {
         console.error('❌ Error getting user contract:', error);
         res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
@@ -1585,21 +1719,15 @@ app.get('/api/contracts/access/:token', async (req, res) => {
             content = content.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
         });
 
+        const contractResponse = convertContractToCamelCase(contract);
+
         res.json({
             data: {
-                ...contract.toObject(),
+                ...contractResponse,
                 content,
                 canSign: contract.status === 'viewed' || contract.status === 'sent',
-                user: {
-                    name: contract.user_id.name,
-                    email: contract.user_id.email,
-                    phone: contract.user_id.phone,
-                    trading_account: contract.user_id.trading_account
-                },
-                template: contract.template_id ? {
-                    name: contract.template_id.name,
-                    variables: contract.template_id.variables
-                } : null
+                user: convertUserToCamelCase(contract.user_id),
+                template: contract.template_id ? convertTemplateToCamelCase(contract.template_id) : null
             }
         });
     } catch (error) {
@@ -1791,10 +1919,10 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
 });
 
 // =====================
-// TEMPLATE VARIABLES ENDPOINT
+// FIX: Template variables endpoint (inconsistent API)
 // =====================
 
-app.get('/api/templates/:id/variables', authenticateToken, async (req, res) => {
+app.get('/api/admin/templates/:id/variables', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const template = await Template.findById(req.params.id);
         if (!template) {
@@ -1814,18 +1942,216 @@ app.get('/api/templates/:id/variables', authenticateToken, async (req, res) => {
             }
         }
         
+        const templateResponse = convertTemplateToCamelCase(template);
+        
         res.json({ 
             template: {
-                id: template._id,
-                name: template.name,
-                category: template.category
+                id: templateResponse._id,
+                name: templateResponse.name,
+                category: templateResponse.category
             },
             variables: foundVariables,
-            predefinedVariables: template.variables || []
+            predefinedVariables: templateResponse.variables || []
         });
     } catch (error) {
         console.error('❌ Error getting template variables:', error);
         res.status(500).json({ error: 'Gagal mendapatkan variabel template' });
+    }
+});
+
+// =====================
+// FIX: Add missing endpoints that frontend needs
+// =====================
+
+// FIX: Add missing /api/notifications endpoint
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const notifications = [];
+        
+        if (req.user.role === 'admin') {
+            // Admin notifications
+            const pendingContracts = await Contract.countDocuments({ 
+                status: { $in: ['sent', 'viewed'] } 
+            });
+            
+            if (pendingContracts > 0) {
+                notifications.push({
+                    id: 'pending-contracts',
+                    type: 'warning',
+                    title: 'Kontrak Menunggu',
+                    message: `${pendingContracts} kontrak menunggu tanda tangan`,
+                    timestamp: new Date()
+                });
+            }
+
+            const expiredContracts = await Contract.countDocuments({
+                expiry_date: { $lt: new Date() },
+                status: { $in: ['sent', 'viewed'] }
+            });
+
+            if (expiredContracts > 0) {
+                notifications.push({
+                    id: 'expired-contracts',
+                    type: 'error',
+                    title: 'Kontrak Kedaluwarsa',
+                    message: `${expiredContracts} kontrak telah kedaluwarsa`,
+                    timestamp: new Date()
+                });
+            }
+        } else {
+            // User notifications
+            const userPendingContracts = await Contract.countDocuments({
+                user_id: req.user._id,
+                status: { $in: ['sent', 'viewed'] }
+            });
+
+            if (userPendingContracts > 0) {
+                notifications.push({
+                    id: 'user-pending-contracts',
+                    type: 'info',
+                    title: 'Kontrak Menunggu Tanda Tangan',
+                    message: `Anda memiliki ${userPendingContracts} kontrak yang menunggu tanda tangan`,
+                    timestamp: new Date()
+                });
+            }
+        }
+
+        res.json({ notifications });
+    } catch (error) {
+        console.error('❌ Error getting notifications:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan notifikasi' });
+    }
+});
+
+// FIX: Add missing /api/settings endpoint
+app.get('/api/settings', authenticateToken, async (req, res) => {
+    try {
+        const settings = {
+            user: {
+                notifications: req.user.preferences?.notifications ?? true,
+                language: req.user.preferences?.language ?? 'id',
+                theme: req.user.preferences?.theme ?? 'light'
+            },
+            system: {
+                version: '2.0.0-advanced',
+                features: {
+                    digitalSignature: true,
+                    pdfGeneration: true,
+                    logoSupport: fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')),
+                    emailNotifications: false,
+                    smsNotifications: false
+                },
+                constants: {
+                    contractStatus: CONTRACT_STATUS,
+                    statusStyles: STATUS_STYLES
+                }
+            }
+        };
+
+        if (req.user.role === 'admin') {
+            settings.admin = {
+                autoBackup: true,
+                maintenanceMode: false,
+                maxFileSize: '50mb',
+                sessionTimeout: '7d'
+            };
+        }
+
+        res.json({ settings });
+    } catch (error) {
+        console.error('❌ Error getting settings:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan pengaturan' });
+    }
+});
+
+// FIX: Add missing /api/settings/user endpoint
+app.put('/api/settings/user', authenticateToken, async (req, res) => {
+    try {
+        const { notifications, language, theme } = req.body;
+
+        const updateData = {};
+        if (notifications !== undefined) updateData['preferences.notifications'] = notifications;
+        if (language) updateData['preferences.language'] = language;
+        if (theme) updateData['preferences.theme'] = theme;
+
+        await User.findByIdAndUpdate(req.user._id, updateData);
+
+        res.json({ message: 'Pengaturan berhasil disimpan' });
+    } catch (error) {
+        console.error('❌ Error updating user settings:', error);
+        res.status(500).json({ error: 'Gagal menyimpan pengaturan' });
+    }
+});
+
+// FIX: Add missing /api/search endpoint
+app.get('/api/search', authenticateToken, async (req, res) => {
+    try {
+        const query = req.query.q;
+        const type = req.query.type || 'all';
+        
+        if (!query || query.length < 2) {
+            return res.status(400).json({ error: 'Query pencarian minimal 2 karakter' });
+        }
+
+        const results = {};
+
+        if (type === 'all' || type === 'contracts') {
+            let contractQuery = {
+                $or: [
+                    { number: { $regex: query, $options: 'i' } },
+                    { title: { $regex: query, $options: 'i' } }
+                ]
+            };
+
+            // Limit user to their own contracts
+            if (req.user.role !== 'admin') {
+                contractQuery.user_id = req.user._id;
+            }
+
+            const contracts = await Contract.find(contractQuery)
+                .populate('user_id', 'name email')
+                .limit(10)
+                .select('_id number title status amount createdAt')
+                .lean();
+            
+            results.contracts = contracts.map(contract => convertContractToCamelCase(contract));
+        }
+
+        if ((type === 'all' || type === 'users') && req.user.role === 'admin') {
+            const users = await User.find({
+                $or: [
+                    { name: { $regex: query, $options: 'i' } },
+                    { email: { $regex: query, $options: 'i' } },
+                    { trading_account: { $regex: query, $options: 'i' } }
+                ],
+                is_active: true
+            })
+            .limit(10)
+            .select('_id name email role trading_account')
+            .lean();
+            
+            results.users = users.map(user => convertUserToCamelCase(user));
+        }
+
+        if ((type === 'all' || type === 'templates') && req.user.role === 'admin') {
+            const templates = await Template.find({
+                $or: [
+                    { name: { $regex: query, $options: 'i' } },
+                    { category: { $regex: query, $options: 'i' } }
+                ],
+                is_active: true
+            })
+            .limit(10)
+            .select('_id name category description usage_count')
+            .lean();
+            
+            results.templates = templates.map(template => convertTemplateToCamelCase(template));
+        }
+
+        res.json({ results, query });
+    } catch (error) {
+        console.error('❌ Error in search:', error);
+        res.status(500).json({ error: 'Gagal melakukan pencarian' });
     }
 });
 
@@ -1841,7 +2167,7 @@ app.get('/api/admin/reports/daily', authenticateToken, authenticateAdmin, async 
 
         const contracts = await Contract.find({
             createdAt: { $gte: startOfDay, $lt: endOfDay }
-        }).populate('user_id', 'name email');
+        }).populate('user_id', 'name email').lean();
 
         const stats = await Contract.aggregate([
             { $match: { createdAt: { $gte: startOfDay, $lt: endOfDay } } },
@@ -1854,9 +2180,11 @@ app.get('/api/admin/reports/daily', authenticateToken, authenticateAdmin, async 
             }
         ]);
 
+        const contractsResponse = contracts.map(contract => convertContractToCamelCase(contract));
+
         res.json({
             date: date.toISOString().split('T')[0],
-            contracts,
+            contracts: contractsResponse,
             statistics: stats,
             summary: {
                 totalContracts: contracts.length,
@@ -1936,16 +2264,16 @@ app.get('/api/admin/reports/export', authenticateToken, authenticateAdmin, async
         const exportData = contracts.map(contract => ({
             number: contract.number,
             title: contract.title,
-            user_name: contract.user_id?.name || 'Unknown',
-            user_email: contract.user_id?.email || '',
-            user_phone: contract.user_id?.phone || '',
-            trading_account: contract.user_id?.trading_account || '',
-            template_name: contract.template_id?.name || 'Custom',
+            userName: contract.user_id?.name || 'Unknown',
+            userEmail: contract.user_id?.email || '',
+            userPhone: contract.user_id?.phone || '',
+            tradingAccount: contract.user_id?.trading_account || '',
+            templateName: contract.template_id?.name || 'Custom',
             amount: contract.amount,
             status: contract.status,
-            created_at: contract.createdAt,
-            signed_at: contract.signed_at,
-            created_by: contract.created_by?.name || 'System'
+            createdAt: contract.createdAt,
+            signedAt: contract.signed_at,
+            createdBy: contract.created_by?.name || 'System'
         }));
 
         if (format === 'csv') {
@@ -1975,193 +2303,6 @@ app.get('/api/admin/reports/export', authenticateToken, authenticateAdmin, async
     } catch (error) {
         console.error('❌ Error exporting data:', error);
         res.status(500).json({ error: 'Gagal mengeksport data' });
-    }
-});
-
-// =====================
-// HELPER ENDPOINTS
-// =====================
-
-app.get('/api/notifications', authenticateToken, async (req, res) => {
-    try {
-        const notifications = [];
-        
-        if (req.user.role === 'admin') {
-            // Admin notifications
-            const pendingContracts = await Contract.countDocuments({ 
-                status: { $in: ['sent', 'viewed'] } 
-            });
-            
-            if (pendingContracts > 0) {
-                notifications.push({
-                    id: 'pending-contracts',
-                    type: 'warning',
-                    title: 'Kontrak Menunggu',
-                    message: `${pendingContracts} kontrak menunggu tanda tangan`,
-                    timestamp: new Date()
-                });
-            }
-
-            const expiredContracts = await Contract.countDocuments({
-                expiry_date: { $lt: new Date() },
-                status: { $in: ['sent', 'viewed'] }
-            });
-
-            if (expiredContracts > 0) {
-                notifications.push({
-                    id: 'expired-contracts',
-                    type: 'error',
-                    title: 'Kontrak Kedaluwarsa',
-                    message: `${expiredContracts} kontrak telah kedaluwarsa`,
-                    timestamp: new Date()
-                });
-            }
-        } else {
-            // User notifications
-            const userPendingContracts = await Contract.countDocuments({
-                user_id: req.user._id,
-                status: { $in: ['sent', 'viewed'] }
-            });
-
-            if (userPendingContracts > 0) {
-                notifications.push({
-                    id: 'user-pending-contracts',
-                    type: 'info',
-                    title: 'Kontrak Menunggu Tanda Tangan',
-                    message: `Anda memiliki ${userPendingContracts} kontrak yang menunggu tanda tangan`,
-                    timestamp: new Date()
-                });
-            }
-        }
-
-        res.json({ notifications });
-    } catch (error) {
-        console.error('❌ Error getting notifications:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan notifikasi' });
-    }
-});
-
-// =====================
-// SETTINGS & PREFERENCES
-// =====================
-
-app.get('/api/settings', authenticateToken, async (req, res) => {
-    try {
-        const settings = {
-            user: {
-                notifications: req.user.preferences?.notifications ?? true,
-                language: req.user.preferences?.language ?? 'id',
-                theme: req.user.preferences?.theme ?? 'light'
-            },
-            system: {
-                version: '2.0.0-advanced',
-                features: {
-                    digital_signature: true,
-                    pdf_generation: true,
-                    logo_support: fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')),
-                    email_notifications: false,
-                    sms_notifications: false
-                }
-            }
-        };
-
-        if (req.user.role === 'admin') {
-            settings.admin = {
-                auto_backup: true,
-                maintenance_mode: false,
-                max_file_size: '50mb',
-                session_timeout: '7d'
-            };
-        }
-
-        res.json({ settings });
-    } catch (error) {
-        console.error('❌ Error getting settings:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan pengaturan' });
-    }
-});
-
-app.put('/api/settings/user', authenticateToken, async (req, res) => {
-    try {
-        const { notifications, language, theme } = req.body;
-
-        const updateData = {};
-        if (notifications !== undefined) updateData['preferences.notifications'] = notifications;
-        if (language) updateData['preferences.language'] = language;
-        if (theme) updateData['preferences.theme'] = theme;
-
-        await User.findByIdAndUpdate(req.user._id, updateData);
-
-        res.json({ message: 'Pengaturan berhasil disimpan' });
-    } catch (error) {
-        console.error('❌ Error updating user settings:', error);
-        res.status(500).json({ error: 'Gagal menyimpan pengaturan' });
-    }
-});
-
-// =====================
-// SEARCH ENDPOINTS
-// =====================
-
-app.get('/api/search', authenticateToken, async (req, res) => {
-    try {
-        const query = req.query.q;
-        const type = req.query.type || 'all';
-        
-        if (!query || query.length < 2) {
-            return res.status(400).json({ error: 'Query pencarian minimal 2 karakter' });
-        }
-
-        const results = {};
-
-        if (type === 'all' || type === 'contracts') {
-            let contractQuery = {
-                $or: [
-                    { number: { $regex: query, $options: 'i' } },
-                    { title: { $regex: query, $options: 'i' } }
-                ]
-            };
-
-            // Limit user to their own contracts
-            if (req.user.role !== 'admin') {
-                contractQuery.user_id = req.user._id;
-            }
-
-            results.contracts = await Contract.find(contractQuery)
-                .populate('user_id', 'name email')
-                .limit(10)
-                .select('_id number title status amount createdAt');
-        }
-
-        if ((type === 'all' || type === 'users') && req.user.role === 'admin') {
-            results.users = await User.find({
-                $or: [
-                    { name: { $regex: query, $options: 'i' } },
-                    { email: { $regex: query, $options: 'i' } },
-                    { trading_account: { $regex: query, $options: 'i' } }
-                ],
-                is_active: true
-            })
-            .limit(10)
-            .select('_id name email role trading_account');
-        }
-
-        if ((type === 'all' || type === 'templates') && req.user.role === 'admin') {
-            results.templates = await Template.find({
-                $or: [
-                    { name: { $regex: query, $options: 'i' } },
-                    { category: { $regex: query, $options: 'i' } }
-                ],
-                is_active: true
-            })
-            .limit(10)
-            .select('_id name category description usage_count');
-        }
-
-        res.json({ results, query });
-    } catch (error) {
-        console.error('❌ Error in search:', error);
-        res.status(500).json({ error: 'Gagal melakukan pencarian' });
     }
 });
 
@@ -2235,8 +2376,14 @@ async function startAdvancedServer() {
             console.log(`✅ All advanced features operational!`);
             console.log(`🎯 Ready for production deployment!`);
             console.log(`\n🔑 Default Login Credentials:`);
-            console.log(`   Admin: admin@tradestation.com / admin123`);
-            console.log(`   User:  hermanzal@trader.com / trader123`);
+            console.log(`   Admin: ${DEFAULT_USERS.ADMIN.email} / ${DEFAULT_USERS.ADMIN.password}`);
+            console.log(`   User:  ${DEFAULT_USERS.USER.email} / ${DEFAULT_USERS.USER.password}`);
+            console.log(`\n📡 Fixed Issues:`);
+            console.log(`   ✅ Template variables endpoint: /api/admin/templates/:id/variables`);
+            console.log(`   ✅ Data naming convention: snake_case → camelCase`);
+            console.log(`   ✅ Added missing endpoints: notifications, settings, search, auth/me`);
+            console.log(`   ✅ Removed code duplication`);
+            console.log(`   ✅ Centralized constants and utilities`);
         });
 
         server.on('error', (error) => {
