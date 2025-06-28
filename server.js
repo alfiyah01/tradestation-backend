@@ -374,14 +374,82 @@ function generateContractNumber() {
 
 // Format uang ke Rupiah
 function formatCurrency(amount) {
-    return new Intl.NumberFormat('id-ID', {
-        style: 'currency',
-        currency: 'IDR',
-        minimumFractionDigits: 0
-    }).format(amount);
+    try {
+        if (typeof amount !== 'number' || isNaN(amount)) {
+            return 'Rp 0';
+        }
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    } catch (error) {
+        console.warn('⚠️ Error formatting currency:', error);
+        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
+    }
 }
 
-// Membuat PDF kontrak
+// =====================
+// MIDDLEWARE AUTENTIKASI - Untuk mengecek login user
+// ⚡ DIPINDAHKAN KE SINI AGAR BISA DIGUNAKAN DI ROUTES
+// =====================
+
+const authenticateToken = async (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ error: 'Token akses diperlukan' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(decoded.userId).where('is_active').equals(true);
+        
+        if (!user) {
+            return res.status(401).json({ error: 'Token tidak valid atau user tidak ditemukan' });
+        }
+
+        req.user = user;
+        next();
+    } catch (error) {
+        console.error('Error verifikasi token:', error);
+        return res.status(403).json({ error: 'Token tidak valid atau sudah kedaluwarsa' });
+    }
+};
+
+const authenticateAdmin = async (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Akses admin diperlukan' });
+    }
+    next();
+};
+
+// Fungsi untuk mencatat aktivitas kontrak
+async function logContractActivity(contractId, action, description, userId = null, req = null) {
+    try {
+        await ContractHistory.create({
+            contract_id: contractId,
+            action,
+            description,
+            performed_by: userId,
+            ip_address: req ? req.ip : null,
+            user_agent: req ? req.get('User-Agent') : null,
+            metadata: {
+                timestamp: new Date(),
+                source: 'system'
+            }
+        });
+    } catch (error) {
+        console.error('Gagal mencatat aktivitas kontrak:', error);
+    }
+}
+
+// =====================
+// MEMBUAT PDF KONTRAK - DIPINDAHKAN KE SINI
+// =====================
+
 async function generateContractPDF(contract, user, signatureData) {
     return new Promise((resolve, reject) => {
         try {
@@ -686,227 +754,6 @@ Kontrak ini sah dan mengikat kedua belah pihak.
     });
 }
 
-// Endpoint download yang diperbaiki - GANTI YANG LAMA
-app.get('/api/contracts/download/:contractId', async (req, res) => {
-    try {
-        const { contractId } = req.params;
-        
-        console.log('📥 Download request for contract:', contractId);
-
-        // Validasi ID
-        if (!contractId || !mongoose.Types.ObjectId.isValid(contractId)) {
-            console.log('❌ Invalid contract ID:', contractId);
-            return res.status(400).json({ error: 'ID kontrak tidak valid' });
-        }
-
-        // Cari kontrak
-        const contract = await Contract.findById(contractId)
-            .populate('user_id', 'name email phone trading_account')
-            .lean();
-
-        if (!contract) {
-            console.log('❌ Contract not found:', contractId);
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        if (!contract.user_id) {
-            console.log('❌ Contract user not found:', contractId);
-            return res.status(404).json({ error: 'Data user kontrak tidak ditemukan' });
-        }
-
-        console.log('✅ Contract found:', {
-            id: contractId,
-            number: contract.number,
-            status: contract.status,
-            user: contract.user_id.name,
-            amount: contract.amount
-        });
-
-        // Generate PDF dengan timeout protection
-        console.log('🔄 Starting PDF generation...');
-        
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('PDF generation timeout')), 30000)
-        );
-        
-        const pdfPromise = generateContractPDF(contract, contract.user_id, contract.signature_data);
-        
-        const pdfBuffer = await Promise.race([pdfPromise, timeoutPromise]);
-
-        if (!pdfBuffer || pdfBuffer.length === 0) {
-            throw new Error('PDF buffer kosong atau tidak valid');
-        }
-
-        console.log('✅ PDF generated successfully, size:', pdfBuffer.length);
-
-        // Log activity (non-blocking)
-        logContractActivity(
-            contract._id,
-            'downloaded',
-            'PDF kontrak diunduh',
-            null,
-            req
-        ).catch(err => console.warn('⚠️ Failed to log activity:', err.message));
-
-        // Buat filename yang aman
-        const safeName = (contract.user_id.name || 'User')
-            .replace(/[^a-zA-Z0-9\s]/g, '')
-            .replace(/\s+/g, '_')
-            .substring(0, 50);
-        
-        const filename = `Kontrak_${contract.number}_${safeName}.pdf`;
-
-        // Set response headers
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Length', pdfBuffer.length);
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-
-        console.log('📤 Sending PDF to client...');
-        res.send(pdfBuffer);
-
-    } catch (error) {
-        console.error('❌ Download error:', {
-            contractId: req.params.contractId,
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        });
-
-        if (res.headersSent) {
-            return res.end();
-        }
-
-        res.status(500).json({ 
-            error: 'Gagal mendownload kontrak',
-            message: error.message,
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        });
-    }
-});
-
-// Helper function untuk format currency yang aman
-function formatCurrency(amount) {
-    try {
-        if (typeof amount !== 'number' || isNaN(amount)) {
-            return 'Rp 0';
-        }
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    } catch (error) {
-        console.warn('⚠️ Error formatting currency:', error);
-        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
-    }
-}
-
-// Endpoint untuk test PDF generation (tambahan untuk debugging)
-app.get('/api/contracts/:contractId/test-pdf', authenticateToken, async (req, res) => {
-    try {
-        const { contractId } = req.params;
-        
-        const contract = await Contract.findById(contractId)
-            .populate('user_id', 'name email phone trading_account')
-            .lean();
-
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        // Test data untuk debugging
-        const testData = {
-            contract: {
-                id: contract._id,
-                number: contract.number,
-                title: contract.title,
-                amount: contract.amount,
-                status: contract.status,
-                content_available: !!contract.content,
-                content_length: contract.content ? contract.content.length : 0,
-                variables: contract.variables || {},
-                signed_at: contract.signed_at,
-                has_signature: !!contract.signature_data
-            },
-            user: contract.user_id ? {
-                name: contract.user_id.name,
-                email: contract.user_id.email,
-                phone: contract.user_id.phone,
-                trading_account: contract.user_id.trading_account
-            } : null,
-            system_info: {
-                node_version: process.version,
-                memory_usage: process.memoryUsage(),
-                uptime: process.uptime()
-            },
-            pdf_ready: contract.user_id && contract.content
-        };
-
-        res.json(testData);
-    } catch (error) {
-        console.error('Test PDF error:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// =====================
-// MIDDLEWARE AUTENTIKASI - Untuk mengecek login user
-// =====================
-
-const authenticateToken = async (req, res, next) => {
-    const authHeader = req.headers['authorization'];
-    const token = authHeader && authHeader.split(' ')[1];
-
-    if (!token) {
-        return res.status(401).json({ error: 'Token akses diperlukan' });
-    }
-
-    try {
-        const decoded = jwt.verify(token, JWT_SECRET);
-        const user = await User.findById(decoded.userId).where('is_active').equals(true);
-        
-        if (!user) {
-            return res.status(401).json({ error: 'Token tidak valid atau user tidak ditemukan' });
-        }
-
-        req.user = user;
-        next();
-    } catch (error) {
-        console.error('Error verifikasi token:', error);
-        return res.status(403).json({ error: 'Token tidak valid atau sudah kedaluwarsa' });
-    }
-};
-
-const authenticateAdmin = async (req, res, next) => {
-    if (req.user.role !== 'admin') {
-        return res.status(403).json({ error: 'Akses admin diperlukan' });
-    }
-    next();
-};
-
-// Fungsi untuk mencatat aktivitas kontrak
-async function logContractActivity(contractId, action, description, userId = null, req = null) {
-    try {
-        await ContractHistory.create({
-            contract_id: contractId,
-            action,
-            description,
-            performed_by: userId,
-            ip_address: req ? req.ip : null,
-            user_agent: req ? req.get('User-Agent') : null,
-            metadata: {
-                timestamp: new Date(),
-                source: 'system'
-            }
-        });
-    } catch (error) {
-        console.error('Gagal mencatat aktivitas kontrak:', error);
-    }
-}
-
 // =====================
 // ROUTES/ENDPOINT - Ini adalah alamat-alamat yang bisa diakses
 // =====================
@@ -1176,50 +1023,157 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
     }
 });
 
+// =====================
+// ENDPOINT DOWNLOAD PDF - DIPERBAIKI
+// =====================
+
 app.get('/api/contracts/download/:contractId', async (req, res) => {
     try {
         const { contractId } = req.params;
+        
+        console.log('📥 Download request for contract:', contractId);
 
-        if (!mongoose.Types.ObjectId.isValid(contractId)) {
+        // Validasi ID
+        if (!contractId || !mongoose.Types.ObjectId.isValid(contractId)) {
+            console.log('❌ Invalid contract ID:', contractId);
             return res.status(400).json({ error: 'ID kontrak tidak valid' });
         }
 
+        // Cari kontrak
         const contract = await Contract.findById(contractId)
-            .populate('user_id', 'name email phone trading_account');
+            .populate('user_id', 'name email phone trading_account')
+            .lean();
 
         if (!contract) {
+            console.log('❌ Contract not found:', contractId);
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        if (!['signed', 'completed'].includes(contract.status)) {
-            return res.status(400).json({ error: 'Kontrak belum ditandatangani' });
+        if (!contract.user_id) {
+            console.log('❌ Contract user not found:', contractId);
+            return res.status(404).json({ error: 'Data user kontrak tidak ditemukan' });
         }
 
-        console.log('Generating PDF for contract:', contractId);
+        console.log('✅ Contract found:', {
+            id: contractId,
+            number: contract.number,
+            status: contract.status,
+            user: contract.user_id.name,
+            amount: contract.amount
+        });
 
-        const pdfBuffer = await generateContractPDF(contract, contract.user_id, contract.signature_data);
+        // Generate PDF dengan timeout protection
+        console.log('🔄 Starting PDF generation...');
+        
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('PDF generation timeout')), 30000)
+        );
+        
+        const pdfPromise = generateContractPDF(contract, contract.user_id, contract.signature_data);
+        
+        const pdfBuffer = await Promise.race([pdfPromise, timeoutPromise]);
 
-        await logContractActivity(
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            throw new Error('PDF buffer kosong atau tidak valid');
+        }
+
+        console.log('✅ PDF generated successfully, size:', pdfBuffer.length);
+
+        // Log activity (non-blocking)
+        logContractActivity(
             contract._id,
             'downloaded',
             'PDF kontrak diunduh',
             null,
             req
-        );
+        ).catch(err => console.warn('⚠️ Failed to log activity:', err.message));
 
-        const filename = `Kontrak_${contract.number}_${contract.user_id.name.replace(/\s+/g, '_')}.pdf`;
+        // Buat filename yang aman
+        const safeName = (contract.user_id.name || 'User')
+            .replace(/[^a-zA-Z0-9\s]/g, '')
+            .replace(/\s+/g, '_')
+            .substring(0, 50);
+        
+        const filename = `Kontrak_${contract.number}_${safeName}.pdf`;
 
+        // Set response headers
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Length', pdfBuffer.length);
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
 
+        console.log('📤 Sending PDF to client...');
         res.send(pdfBuffer);
+
     } catch (error) {
-        console.error('Error download kontrak:', error);
-        res.status(500).json({ error: 'Gagal mendownload kontrak' });
+        console.error('❌ Download error:', {
+            contractId: req.params.contractId,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+
+        if (res.headersSent) {
+            return res.end();
+        }
+
+        res.status(500).json({ 
+            error: 'Gagal mendownload kontrak',
+            message: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// =====================
+// ENDPOINT TEST PDF - SEKARANG BISA MENGGUNAKAN authenticateToken
+// =====================
+
+app.get('/api/contracts/:contractId/test-pdf', authenticateToken, async (req, res) => {
+    try {
+        const { contractId } = req.params;
+        
+        const contract = await Contract.findById(contractId)
+            .populate('user_id', 'name email phone trading_account')
+            .lean();
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        // Test data untuk debugging
+        const testData = {
+            contract: {
+                id: contract._id,
+                number: contract.number,
+                title: contract.title,
+                amount: contract.amount,
+                status: contract.status,
+                content_available: !!contract.content,
+                content_length: contract.content ? contract.content.length : 0,
+                variables: contract.variables || {},
+                signed_at: contract.signed_at,
+                has_signature: !!contract.signature_data
+            },
+            user: contract.user_id ? {
+                name: contract.user_id.name,
+                email: contract.user_id.email,
+                phone: contract.user_id.phone,
+                trading_account: contract.user_id.trading_account
+            } : null,
+            system_info: {
+                node_version: process.version,
+                memory_usage: process.memoryUsage(),
+                uptime: process.uptime()
+            },
+            pdf_ready: contract.user_id && contract.content
+        };
+
+        res.json(testData);
+    } catch (error) {
+        console.error('Test PDF error:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
@@ -2255,6 +2209,7 @@ async function startServer() {
             console.log(`   - ✅ Error handling yang diperbaiki`);
             console.log(`   - ✅ Validation yang lebih ketat`);
             console.log(`   - ✅ API responses yang konsisten`);
+            console.log(`   - ✅ MIDDLEWARE ORDER FIXED - PDF Download Ready!`);
         });
 
         server.on('error', (error) => {
