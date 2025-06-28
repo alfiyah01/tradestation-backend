@@ -391,8 +391,7 @@ function formatCurrency(amount) {
 }
 
 // =====================
-// MIDDLEWARE AUTENTIKASI - Untuk mengecek login user
-// ⚡ DIPINDAHKAN KE SINI AGAR BISA DIGUNAKAN DI ROUTES
+// MIDDLEWARE AUTENTIKASI - DIPINDAHKAN KE SINI (SEBELUM ROUTES)
 // =====================
 
 const authenticateToken = async (req, res, next) => {
@@ -447,7 +446,7 @@ async function logContractActivity(contractId, action, description, userId = nul
 }
 
 // =====================
-// MEMBUAT PDF KONTRAK - DIPINDAHKAN KE SINI
+// MEMBUAT PDF KONTRAK - DIPINDAHKAN KE SINI (SEBELUM ROUTES)
 // =====================
 
 async function generateContractPDF(contract, user, signatureData) {
@@ -1024,7 +1023,7 @@ app.post('/api/contracts/access/:token/sign', async (req, res) => {
 });
 
 // =====================
-// ENDPOINT DOWNLOAD PDF - DIPERBAIKI
+// ENDPOINT DOWNLOAD PDF - VERSI PERBAIKAN (TANPA DUPLIKASI)
 // =====================
 
 app.get('/api/contracts/download/:contractId', async (req, res) => {
@@ -2196,20 +2195,12 @@ async function startServer() {
             console.log(`💾 Database: MongoDB Atlas Terhubung`);
             console.log(`✅ Fitur: Sistem Kontrak Digital Lengkap`);
             console.log(`🎯 Siap menangani permintaan!`);
-            console.log(`📋 Fitur yang telah diperbaiki dan ditambahkan:`);
-            console.log(`   - ✅ Edit Template dengan endpoint lengkap`);
-            console.log(`   - ✅ Preview Template dengan konten yang diproses`);
-            console.log(`   - ✅ Edit User dengan validasi lengkap`);
-            console.log(`   - ✅ Detail Kontrak dengan konten yang diproses`);
-            console.log(`   - ✅ Bulk operations untuk kontrak`);
-            console.log(`   - ✅ Export data kontrak (JSON/CSV)`);
-            console.log(`   - ✅ Duplicate template`);
-            console.log(`   - ✅ Reset password user`);
-            console.log(`   - ✅ History tracking yang lengkap`);
-            console.log(`   - ✅ Error handling yang diperbaiki`);
-            console.log(`   - ✅ Validation yang lebih ketat`);
-            console.log(`   - ✅ API responses yang konsisten`);
-            console.log(`   - ✅ MIDDLEWARE ORDER FIXED - PDF Download Ready!`);
+            console.log(`📋 Perbaikan yang telah dilakukan:`);
+            console.log(`   - ✅ MIDDLEWARE ORDER FIXED - authenticateToken sekarang di atas routes`);
+            console.log(`   - ✅ PDF GENERATION FIXED - generateContractPDF dipindah ke posisi yang benar`);
+            console.log(`   - ✅ NO DUPLICATION - hanya 1 endpoint download PDF yang diperbaiki`);
+            console.log(`   - ✅ ENHANCED ERROR HANDLING - timeout dan logging lengkap`);
+            console.log(`   - ✅ CLEAN STRUCTURE - urutan kode yang benar dan konsisten`);
         });
 
         server.on('error', (error) => {
