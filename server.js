@@ -275,74 +275,6 @@ async function setupInitialData() {
 
 2.5. Informasi yang disediakan oleh Pihak B harus dijaga kerahasiaannya oleh Pihak A dan tidak boleh disebarkan tanpa izin tertulis.
 
-## Pasal 3: Metode Penyelesaian
-
-3.1. Pihak A akan menyelesaikan pembayaran untuk layanan konsultasi / panduan transaksi investasi setelah Pihak A mendapatkan nilai Profit dari Transaksi investasi dan pembayaran komisi konsultasi berlaku selama **{{DURATION_DAYS}}** hari atau minimal **{{MIN_TRANSACTIONS}}** kali transaksi investasi.
-
-3.2. Jika pembayaran tidak dilakukan tepat waktu, Pihak A akan dikenakan denda harian.
-
-3.3. Jika pembayaran tetap tidak dilakukan dalam 48 jam, maka Pihak B dapat menangguhkan layanan.
-
-3.4. Pihak A bertanggung jawab atas biaya tambahan akibat kegagalan pembayaran.
-
-3.5. Jika terjadi pembatalan, biaya layanan yang sudah dibayarkan tidak dapat dikembalikan.
-
-## Pasal 4: Hak dan Kewajiban Pihak A
-
-4.1. Pihak A berhak meminta, dan menerima data yang akurat untuk hasil profit 100% oleh Pihak B. Jika Pihak A collapse / merugi Pihak B wajib melakukan ganti rugi dengan nilai yang sama kepada Pihak A.
-
-4.2. Pihak A berhak tidak menambah nominal modal selama kontrak perjanjian kerja sama investasi ini berlaku yaitu **{{DURATION_DAYS}}** hari atau minimal **{{MIN_TRANSACTIONS}}** kali transaksi investasi.
-
-4.3. Pihak A berhak mendapatkan panduan investasi terbaik sebanyak 5 hingga 10 kali transaksi per harinya selama masa kontrak perjanjian kerja sama investasi ini berlaku.
-
-4.4. Pihak A wajib mengikuti panduan transaksi dengan benar oleh Pihak B. Jika melakukan transaksi investasi diluar panduan Pihak B seluruh resiko hasil transaksi tersebut bukan tanggung jawab Pihak B.
-
-4.5. Pihak A wajib bayarkan komisi konsultasi sebanyak **{{COMMISSION_PERCENTAGE}}%** dari nilai profit transaksi investasi dan dibayarkan setelah transaksi investasi selesai dan wajib Penarikan seluruh modal investasi dan hasil profit transaksi investasi setelah masa durasi kontrak kerja sama investasi selama **{{DURATION_DAYS}}** hari atau minimal **{{MIN_TRANSACTIONS}}** kali transaksi investasi.
-
-4.6. Pihak A menjamin bahwa dana yang digunakan berasal dari sumber yang sah dan dapat dipertanggung jawabkan.
-
-4.7. Pihak A tidak boleh menggunakan informasi layanan ini untuk tindakan yang melanggar hukum seperti pencucian uang, perjudian, penghindaran pajak, dll.
-
-4.8. Pihak A wajib melakukan / mengikuti panduan investasi sebanyak 3 kali transaksi perharinya sesuai jadwal investasi dari Pihak B.
-
-## Pasal 5: Hak dan Kewajiban Pihak B
-
-5.1. Pihak B harus menangani permintaan konsultasi dari Pihak A sesuai perjanjian.
-
-5.2. Pihak B bertanggung jawab memberikan informasi konsultasi investasi secara akurat dan menanggung resiko sebesar 100% pengembalian modal jika terjadi collapse / merugi kepada Pihak A.
-
-5.3. Dalam jam kerja normal, Pihak B akan merespons permintaan dari Pihak A untuk transaksi investasi diluar jadwal yang diberikan Pihak B.
-
-5.4. Pihak B berhak mendapatkan pembayaran komisi konsultasi dari pihak A sebesar **{{COMMISSION_PERCENTAGE}}%** dari nilai Profit transaksi investasi.
-
-5.5. Pihak B dapat menghentikan layanan jika Pihak A tidak membayar atau bertindak mencurigakan.
-
-5.6. Pihak B tidak dibenarkan meminta pembayaran diluar jumlah yang disepekati dalam isi perjanjian kontrak kerja sama investasi ini.
-
-5.7. Pihak B tidak bertanggung jawab atas risiko operasional dari keputusan investasi yang dilakukan Pihak A tanpa panduan atau diluar panduan pihak B.
-
-5.8. Pihak B dapat menolak transaksi yang melanggar hukum atau mencurigakan.
-
-5.9. Sengketa diselesaikan melalui negosiasi damai.
-
-5.10. Pihak B wajib berikan panduan dan jadwal transaksi investasi minimal 3 kali transaksi per harinya kepada pihak A.
-
-5.11. Pihak B berhak mengakhiri perjanjian jika Pihak A melakukan kecurangan pada akun investasi.
-
-5.12. Jika Pihak A melanggar hukum atau menyebabkan kerugian, Pihak B dapat menuntut ganti rugi dan menyelesaikan secara hukum yang berlaku di indonesia.
-
-5.13. Pihak B berhak tidak bertanggung jawab atas pembekuan seluruh aset / modal dan hasil profit investasi pihak A oleh Platform Tradestation, jika Pihak A melakukan penarikan berulang kali selama masa durasi kontrak kerja sama investasi ini berlangsung / belum selesai.
-
-## Pasal 6: Klausul Kerahasiaan
-
-6.1. Informasi yang diperoleh oleh kedua belah pihak selama masa kontrak kerja sama investasi ini harus dijaga kerahasiaannya dan tidak boleh disebarkan kepada pihak ketiga tanpa izin tertulis.
-
-6.2. Kerahasiaan ini meliputi hal - hal penting dan sensitif serta data diri dari kedua belah pihak.
-
-6.3. Semua informasi tetap milik pihak yang memberikannya dan tidak dapat digunakan tanpa izin oleh pihak manapun.
-
-6.4. Klausul ini tetap berlaku meskipun perjanjian berakhir.
-
 ---
 
 **Tertanda:**
@@ -828,10 +760,6 @@ async function generateContractPDF(contract, user, signatureData) {
                     } else if (trimmedLine === '---') {
                         // Professional separator
                         doc.moveDown(0.6);
-                        const separatorGradient = doc.linearGradient(80, doc.y, 520, doc.y);
-                        separatorGradient.stop(0, '#transparent')
-                                       .stop(0.5, '#0ea5e9')
-                                       .stop(1, '#transparent');
                         doc.moveTo(80, doc.y)
                            .lineTo(520, doc.y)
                            .lineWidth(2)
@@ -1230,6 +1158,36 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
     }
 });
 
+// Change password
+app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Password lama dan baru harus diisi' });
+        }
+
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'Password baru minimal 6 karakter' });
+        }
+
+        const user = await User.findById(req.user._id);
+        const validPassword = await bcrypt.compare(currentPassword, user.password);
+
+        if (!validPassword) {
+            return res.status(400).json({ error: 'Password lama tidak benar' });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+        await User.findByIdAndUpdate(req.user._id, { password: hashedPassword });
+
+        res.json({ message: 'Password berhasil diubah' });
+    } catch (error) {
+        console.error('❌ Error changing password:', error);
+        res.status(500).json({ error: 'Gagal mengubah password' });
+    }
+});
+
 // =====================
 // ADMIN ROUTES - DASHBOARD STATS
 // =====================
@@ -1456,1387 +1414,7 @@ app.put('/api/admin/contracts/:id', authenticateToken, authenticateAdmin, async 
     }
 });
 
-app.delete('/api/admin/users/:id', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const user = await User.findById(req.params.id);
-        if (!user) {
-            return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
-        }
-
-        // Prevent admin from deleting themselves
-        if (user._id.toString() === req.user._id.toString()) {
-            return res.status(400).json({ error: 'Tidak dapat menghapus akun sendiri' });
-        }
-
-        // Check if user has contracts
-        const userContracts = await Contract.countDocuments({ user_id: req.params.id });
-        
-        if (userContracts > 0) {
-            // Soft delete by deactivating
-            await User.findByIdAndUpdate(req.params.id, { is_active: false });
-            res.json({ message: 'Pengguna berhasil dinonaktifkan' });
-        } else {
-            // Hard delete if no contracts
-            await User.findByIdAndDelete(req.params.id);
-            res.json({ message: 'Pengguna berhasil dihapus' });
-        }
-    } catch (error) {
-        console.error('❌ Error deleting user:', error);
-        res.status(500).json({ error: 'Gagal menghapus pengguna' });
-    }
-});
-
-// Reset user password
-app.post('/api/admin/users/:id/reset-password', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { newPassword } = req.body;
-
-        if (!newPassword || newPassword.length < 6) {
-            return res.status(400).json({ error: 'Password minimal 6 karakter' });
-        }
-
-        const user = await User.findById(req.params.id);
-        if (!user) {
-            return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 12);
-        
-        await User.findByIdAndUpdate(req.params.id, {
-            password: hashedPassword,
-            login_attempts: 0,
-            locked_until: undefined
-        });
-
-        res.json({ message: 'Password berhasil direset' });
-    } catch (error) {
-        console.error('❌ Error resetting password:', error);
-        res.status(500).json({ error: 'Gagal mereset password' });
-    }
-});
-
-// =====================
-// USER ROUTES
-// =====================
-
-app.get('/api/user/contracts', authenticateToken, async (req, res) => {
-    try {
-        const page = parseInt(req.query.page) || 1;
-        const limit = parseInt(req.query.limit) || 10;
-        const status = req.query.status || '';
-        
-        let query = { user_id: req.user._id };
-        if (status) {
-            query.status = status;
-        }
-        
-        const contracts = await Contract.find(query)
-            .populate('template_id', 'name')
-            .populate('created_by', 'name')
-            .sort({ createdAt: -1 })
-            .limit(limit)
-            .skip((page - 1) * limit)
-            .lean();
-        
-        const total = await Contract.countDocuments(query);
-        
-        // Get status counts
-        const statusCounts = await Contract.aggregate([
-            { $match: { user_id: req.user._id } },
-            { $group: { _id: '$status', count: { $sum: 1 } } }
-        ]);
-        
-        const stats = {
-            total: total,
-            pending: statusCounts.find(s => ['sent', 'viewed'].includes(s._id))?.count || 0,
-            completed: statusCounts.find(s => ['signed', 'completed'].includes(s._id))?.count || 0
-        };
-        
-        res.json({
-            contracts: contracts.map(contract => ({
-                ...contract,
-                template_name: contract.template_id?.name || 'Custom',
-                created_by_name: contract.created_by?.name || 'System'
-            })),
-            stats,
-            pagination: {
-                current: page,
-                total: Math.ceil(total / limit),
-                totalItems: total
-            }
-        });
-    } catch (error) {
-        console.error('❌ Error getting user contracts:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan kontrak pengguna' });
-    }
-});
-
-app.get('/api/user/contracts/:id', authenticateToken, async (req, res) => {
-    try {
-        const contract = await Contract.findOne({
-            _id: req.params.id,
-            user_id: req.user._id
-        })
-        .populate('template_id', 'name content variables')
-        .populate('created_by', 'name');
-
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        res.json({ contract });
-    } catch (error) {
-        console.error('❌ Error getting user contract:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
-    }
-});
-
-// =====================
-// PUBLIC CONTRACT ACCESS (ENHANCED)
-// =====================
-
-app.get('/api/contracts/access/:token', async (req, res) => {
-    try {
-        const { token } = req.params;
-
-        if (!token || token.length < 32) {
-            return res.status(400).json({ error: 'Token akses tidak valid' });
-        }
-
-        const contract = await Contract.findOne({ access_token: token })
-            .populate('user_id', 'name email phone trading_account is_active')
-            .populate('template_id', 'name content variables');
-
-        if (!contract || !contract.user_id || !contract.user_id.is_active) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan atau akses ditolak' });
-        }
-
-        if (contract.expiry_date && new Date() > contract.expiry_date) {
-            await Contract.findByIdAndUpdate(contract._id, { status: 'expired' });
-            await logContractActivity(contract._id, 'expired', 'Kontrak kedaluwarsa karena tanggal habis', null, req);
-            return res.status(410).json({ error: 'Kontrak sudah kedaluwarsa' });
-        }
-
-        if (contract.status === 'sent') {
-            await Contract.findByIdAndUpdate(contract._id, { 
-                status: 'viewed',
-                viewed_at: new Date()
-            });
-            await logContractActivity(contract._id, 'viewed', 'Kontrak dilihat oleh klien', contract.user_id._id, req);
-        }
-
-        let content = contract.template_id?.content || contract.content || '';
-        const variables = contract.variables || {};
-        
-        const replacements = {
-            '{{USER_NAME}}': contract.user_id.name,
-            '{{USER_EMAIL}}': contract.user_id.email || '',
-            '{{USER_PHONE}}': contract.user_id.phone || '',
-            '{{TRADING_ID}}': contract.user_id.trading_account || '',
-            '{{CONTRACT_NUMBER}}': contract.number,
-            '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
-            '{{AMOUNT}}': formatCurrency(contract.amount),
-            '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
-        };
-
-        Object.keys(replacements).forEach(key => {
-            const regex = new RegExp(key.replace(/[{}]/g, '\\app.delete('/'), 'g');
-            content = content.replace(regex, replacements[key]);
-        });
-
-        Object.keys(variables).forEach(key => {
-            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-            content = content.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
-        });
-
-        res.json({
-            data: {
-                ...contract.toObject(),
-                content,
-                canSign: contract.status === 'viewed' || contract.status === 'sent',
-                user: {
-                    name: contract.user_id.name,
-                    email: contract.user_id.email,
-                    phone: contract.user_id.phone,
-                    trading_account: contract.user_id.trading_account
-                },
-                template: contract.template_id ? {
-                    name: contract.template_id.name,
-                    variables: contract.template_id.variables
-                } : null
-            }
-        });
-    } catch (error) {
-        console.error('❌ Error accessing contract:', error);
-        res.status(500).json({ error: 'Gagal mengakses kontrak' });
-    }
-});
-
-app.post('/api/contracts/access/:token/sign', async (req, res) => {
-    try {
-        const { token } = req.params;
-        const { signatureData, variables, clientName, clientEmail } = req.body;
-
-        if (!signatureData) {
-            return res.status(400).json({ error: 'Data tanda tangan diperlukan' });
-        }
-
-        if (!signatureData.startsWith('data:image/')) {
-            return res.status(400).json({ error: 'Format tanda tangan tidak valid' });
-        }
-
-        const contract = await Contract.findOne({ access_token: token })
-            .populate('user_id', 'name email phone trading_account');
-
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        if (contract.status === 'signed' || contract.status === 'completed') {
-            return res.status(400).json({ error: 'Kontrak sudah ditandatangani' });
-        }
-
-        if (!['sent', 'viewed'].includes(contract.status)) {
-            return res.status(400).json({ error: 'Kontrak belum siap untuk ditandatangani' });
-        }
-
-        if (clientName && clientName.toLowerCase() !== contract.user_id.name.toLowerCase()) {
-            return res.status(400).json({ error: 'Nama klien tidak cocok dengan kontrak' });
-        }
-
-        if (clientEmail && clientEmail.toLowerCase() !== contract.user_id.email.toLowerCase()) {
-            return res.status(400).json({ error: 'Email klien tidak cocok dengan kontrak' });
-        }
-
-        const finalVariables = variables ? { ...contract.variables, ...variables } : contract.variables;
-        const signedAt = new Date();
-        
-        await Contract.findByIdAndUpdate(contract._id, {
-            status: 'signed',
-            signature_data: signatureData,
-            signed_at: signedAt,
-            variables: finalVariables,
-            ip_signed: req.ip,
-            user_agent_signed: req.get('User-Agent'),
-            'metadata.pdf_generated': false
-        });
-
-        await logContractActivity(
-            contract._id, 
-            'signed', 
-            'Kontrak ditandatangani dengan tanda tangan digital', 
-            contract.user_id._id, 
-            req
-        );
-
-        res.json({ 
-            message: 'Kontrak berhasil ditandatangani',
-            pdfDownloadUrl: `/api/contracts/download/${contract._id}`,
-            signedAt: signedAt.toISOString(),
-            contractNumber: contract.number
-        });
-    } catch (error) {
-        console.error('❌ Error signing contract:', error);
-        res.status(500).json({ error: 'Gagal menandatangani kontrak' });
-    }
-});
-
-// =====================
-// ENHANCED DOWNLOAD PDF ENDPOINT
-// =====================
-
-app.get('/api/contracts/download/:contractId', async (req, res) => {
-    try {
-        const { contractId } = req.params;
-        
-        console.log('📥 Advanced download request for contract:', contractId);
-
-        if (!contractId || !mongoose.Types.ObjectId.isValid(contractId)) {
-            console.log('❌ Invalid contract ID:', contractId);
-            return res.status(400).json({ error: 'ID kontrak tidak valid' });
-        }
-
-        const contract = await Contract.findById(contractId)
-            .populate('user_id', 'name email phone trading_account')
-            .lean();
-
-        if (!contract) {
-            console.log('❌ Contract not found:', contractId);
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        if (!contract.user_id) {
-            console.log('❌ Contract user not found:', contractId);
-            return res.status(404).json({ error: 'Data user kontrak tidak ditemukan' });
-        }
-
-        console.log('✅ Contract found for advanced generation:', {
-            id: contractId,
-            number: contract.number,
-            status: contract.status,
-            user: contract.user_id.name,
-            amount: contract.amount,
-            hasLogo: fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png'))
-        });
-
-        console.log('🚀 Starting ADVANCED PDF generation with TradeStation logo...');
-        
-        const timeoutPromise = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('PDF generation timeout - advanced process taking too long')), 45000)
-        );
-        
-        const pdfPromise = generateContractPDF(contract, contract.user_id, contract.signature_data);
-        
-        const pdfBuffer = await Promise.race([pdfPromise, timeoutPromise]);
-
-        if (!pdfBuffer || pdfBuffer.length === 0) {
-            throw new Error('Generated PDF is empty or invalid');
-        }
-
-        console.log('✅ ADVANCED PDF generated successfully:', {
-            size: pdfBuffer.length,
-            sizeKB: Math.round(pdfBuffer.length / 1024),
-            contract: contract.number
-        });
-
-        // Update contract metadata
-        await Contract.findByIdAndUpdate(contractId, {
-            'metadata.pdf_generated': true,
-            'metadata.pdf_size': pdfBuffer.length,
-            'metadata.generation_time': Date.now(),
-            $inc: { 'metadata.download_count': 1 }
-        });
-
-        logContractActivity(
-            contract._id,
-            'downloaded',
-            'PDF kontrak advanced diunduh dengan logo TradeStation',
-            null,
-            req
-        ).catch(err => console.warn('⚠️ Failed to log activity:', err.message));
-
-        const safeName = (contract.user_id.name || 'User')
-            .replace(/[^a-zA-Z0-9\s]/g, '')
-            .replace(/\s+/g, '_')
-            .substring(0, 50);
-        
-        const filename = `TradeStation_Kontrak_${contract.number}_${safeName}.pdf`;
-
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.setHeader('Content-Length', pdfBuffer.length);
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        res.setHeader('Pragma', 'no-cache');
-        res.setHeader('Expires', '0');
-        res.setHeader('X-PDF-Generator', 'TradeStation Advanced Engine v2.0');
-        res.setHeader('X-Contract-Number', contract.number);
-
-        console.log('📤 Sending ADVANCED PDF to client...');
-        res.send(pdfBuffer);
-
-    } catch (error) {
-        console.error('❌ Advanced download error:', {
-            contractId: req.params.contractId,
-            error: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        });
-
-        if (res.headersSent) {
-            return res.end();
-        }
-
-        res.status(500).json({ 
-            error: 'Gagal mendownload kontrak advanced',
-            message: error.message,
-            version: '2.0.0-advanced',
-            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
-        });
-    }
-});
-
-// =====================
-// REPORTS & ANALYTICS
-// =====================
-
-app.get('/api/admin/reports/daily', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const date = req.query.date ? new Date(req.query.date) : new Date();
-        const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-        const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
-
-        const contracts = await Contract.find({
-            createdAt: { $gte: startOfDay, $lt: endOfDay }
-        }).populate('user_id', 'name email');
-
-        const stats = await Contract.aggregate([
-            { $match: { createdAt: { $gte: startOfDay, $lt: endOfDay } } },
-            {
-                $group: {
-                    _id: '$status',
-                    count: { $sum: 1 },
-                    totalValue: { $sum: '$amount' }
-                }
-            }
-        ]);
-
-        res.json({
-            date: date.toISOString().split('T')[0],
-            contracts,
-            statistics: stats,
-            summary: {
-                totalContracts: contracts.length,
-                totalValue: stats.reduce((sum, stat) => sum + stat.totalValue, 0)
-            }
-        });
-    } catch (error) {
-        console.error('❌ Error generating daily report:', error);
-        res.status(500).json({ error: 'Gagal membuat laporan harian' });
-    }
-});
-
-app.get('/api/admin/reports/monthly', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const year = parseInt(req.query.year) || new Date().getFullYear();
-        const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-        
-        const startOfMonth = new Date(year, month - 1, 1);
-        const endOfMonth = new Date(year, month, 0);
-
-        const stats = await Contract.aggregate([
-            { $match: { createdAt: { $gte: startOfMonth, $lte: endOfMonth } } },
-            {
-                $group: {
-                    _id: {
-                        day: { $dayOfMonth: '$createdAt' },
-                        status: '$status'
-                    },
-                    count: { $sum: 1 },
-                    totalValue: { $sum: '$amount' }
-                }
-            },
-            { $sort: { '_id.day': 1 } }
-        ]);
-
-        const summary = await Contract.aggregate([
-            { $match: { createdAt: { $gte: startOfMonth, $lte: endOfMonth } } },
-            {
-                $group: {
-                    _id: null,
-                    totalContracts: { $sum: 1 },
-                    totalValue: { $sum: '$amount' },
-                    signed: {
-                        $sum: {
-                            $cond: [{ $in: ['$status', ['signed', 'completed']] }, 1, 0]
-                        }
-                    }
-                }
-            }
-        ]);
-
-        res.json({
-            period: `${year}-${month.toString().padStart(2, '0')}`,
-            dailyStats: stats,
-            summary: summary[0] || { totalContracts: 0, totalValue: 0, signed: 0 }
-        });
-    } catch (error) {
-        console.error('❌ Error generating monthly report:', error);
-        res.status(500).json({ error: 'Gagal membuat laporan bulanan' });
-    }
-});
-
-app.get('/api/admin/reports/export', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const format = req.query.format || 'json';
-        const startDate = req.query.startDate ? new Date(req.query.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-        const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
-
-        const contracts = await Contract.find({
-            createdAt: { $gte: startDate, $lte: endDate }
-        })
-        .populate('user_id', 'name email phone trading_account')
-        .populate('template_id', 'name category')
-        .populate('created_by', 'name')
-        .lean();
-
-        const exportData = contracts.map(contract => ({
-            number: contract.number,
-            title: contract.title,
-            user_name: contract.user_id?.name || 'Unknown',
-            user_email: contract.user_id?.email || '',
-            user_phone: contract.user_id?.phone || '',
-            trading_account: contract.user_id?.trading_account || '',
-            template_name: contract.template_id?.name || 'Custom',
-            amount: contract.amount,
-            status: contract.status,
-            created_at: contract.createdAt,
-            signed_at: contract.signed_at,
-            created_by: contract.created_by?.name || 'System'
-        }));
-
-        if (format === 'csv') {
-            const csv = [
-                // CSV headers
-                Object.keys(exportData[0] || {}).join(','),
-                // CSV data
-                ...exportData.map(row => Object.values(row).map(val => 
-                    typeof val === 'string' && val.includes(',') ? `"${val}"` : val
-                ).join(','))
-            ].join('\n');
-
-            res.setHeader('Content-Type', 'text/csv');
-            res.setHeader('Content-Disposition', 'attachment; filename="contracts_export.csv"');
-            res.send(csv);
-        } else {
-            res.json({
-                exportDate: new Date().toISOString(),
-                period: {
-                    startDate: startDate.toISOString(),
-                    endDate: endDate.toISOString()
-                },
-                totalRecords: exportData.length,
-                data: exportData
-            });
-        }
-    } catch (error) {
-        console.error('❌ Error exporting data:', error);
-        res.status(500).json({ error: 'Gagal mengeksport data' });
-    }
-});
-
-// =====================
-// HELPER ENDPOINTS
-// =====================
-
-app.get('/api/templates/public', async (req, res) => {
-    try {
-        const templates = await Template.find({ is_active: true })
-            .select('_id name category description variables')
-            .sort({ name: 1 });
-
-        res.json({ templates });
-    } catch (error) {
-        console.error('❌ Error getting public templates:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan template' });
-    }
-});
-
-app.get('/api/users/public', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const users = await User.find({ is_active: true, role: 'user' })
-            .select('_id name email trading_account')
-            .sort({ name: 1 });
-
-        res.json({ users });
-    } catch (error) {
-        console.error('❌ Error getting public users:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan pengguna' });
-    }
-});
-
-// Contract history
-app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
-    try {
-        const contract = await Contract.findById(req.params.id);
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        // Check permissions
-        if (req.user.role !== 'admin' && contract.user_id.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ error: 'Akses ditolak' });
-        }
-
-        const history = await ContractHistory.find({ contract_id: req.params.id })
-            .populate('performed_by', 'name')
-            .sort({ createdAt: -1 });
-
-        res.json({ history });
-    } catch (error) {
-        console.error('❌ Error getting contract history:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan riwayat kontrak' });
-    }
-});
-
-// =====================
-// NOTIFICATION SYSTEM (Basic)
-// =====================
-
-app.get('/api/notifications', authenticateToken, async (req, res) => {
-    try {
-        // Basic notification system
-        const notifications = [];
-        
-        if (req.user.role === 'admin') {
-            // Admin notifications
-            const pendingContracts = await Contract.countDocuments({ 
-                status: { $in: ['sent', 'viewed'] } 
-            });
-            
-            if (pendingContracts > 0) {
-                notifications.push({
-                    id: 'pending-contracts',
-                    type: 'warning',
-                    title: 'Kontrak Menunggu',
-                    message: `${pendingContracts} kontrak menunggu tanda tangan`,
-                    timestamp: new Date()
-                });
-            }
-
-            const expiredContracts = await Contract.countDocuments({
-                expiry_date: { $lt: new Date() },
-                status: { $in: ['sent', 'viewed'] }
-            });
-
-            if (expiredContracts > 0) {
-                notifications.push({
-                    id: 'expired-contracts',
-                    type: 'error',
-                    title: 'Kontrak Kedaluwarsa',
-                    message: `${expiredContracts} kontrak telah kedaluwarsa`,
-                    timestamp: new Date()
-                });
-            }
-        } else {
-            // User notifications
-            const userPendingContracts = await Contract.countDocuments({
-                user_id: req.user._id,
-                status: { $in: ['sent', 'viewed'] }
-            });
-
-            if (userPendingContracts > 0) {
-                notifications.push({
-                    id: 'user-pending-contracts',
-                    type: 'info',
-                    title: 'Kontrak Menunggu Tanda Tangan',
-                    message: `Anda memiliki ${userPendingContracts} kontrak yang menunggu tanda tangan`,
-                    timestamp: new Date()
-                });
-            }
-        }
-
-        res.json({ notifications });
-    } catch (error) {
-        console.error('❌ Error getting notifications:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan notifikasi' });
-    }
-});
-
-// =====================
-// SEARCH ENDPOINTS
-// =====================
-
-app.get('/api/search', authenticateToken, async (req, res) => {
-    try {
-        const query = req.query.q;
-        const type = req.query.type || 'all';
-        
-        if (!query || query.length < 2) {
-            return res.status(400).json({ error: 'Query pencarian minimal 2 karakter' });
-        }
-
-        const results = {};
-
-        if (type === 'all' || type === 'contracts') {
-            let contractQuery = {
-                $or: [
-                    { number: { $regex: query, $options: 'i' } },
-                    { title: { $regex: query, $options: 'i' } }
-                ]
-            };
-
-            // Limit user to their own contracts
-            if (req.user.role !== 'admin') {
-                contractQuery.user_id = req.user._id;
-            }
-
-            results.contracts = await Contract.find(contractQuery)
-                .populate('user_id', 'name email')
-                .limit(10)
-                .select('_id number title status amount createdAt');
-        }
-
-        if ((type === 'all' || type === 'users') && req.user.role === 'admin') {
-            results.users = await User.find({
-                $or: [
-                    { name: { $regex: query, $options: 'i' } },
-                    { email: { $regex: query, $options: 'i' } },
-                    { trading_account: { $regex: query, $options: 'i' } }
-                ],
-                is_active: true
-            })
-            .limit(10)
-            .select('_id name email role trading_account');
-        }
-
-        if ((type === 'all' || type === 'templates') && req.user.role === 'admin') {
-            results.templates = await Template.find({
-                $or: [
-                    { name: { $regex: query, $options: 'i' } },
-                    { category: { $regex: query, $options: 'i' } }
-                ],
-                is_active: true
-            })
-            .limit(10)
-            .select('_id name category description usage_count');
-        }
-
-        res.json({ results, query });
-    } catch (error) {
-        console.error('❌ Error in search:', error);
-        res.status(500).json({ error: 'Gagal melakukan pencarian' });
-    }
-});
-
-// =====================
-// SETTINGS & PREFERENCES
-// =====================
-
-app.get('/api/settings', authenticateToken, async (req, res) => {
-    try {
-        const settings = {
-            user: {
-                notifications: req.user.preferences?.notifications ?? true,
-                language: req.user.preferences?.language ?? 'id',
-                theme: req.user.preferences?.theme ?? 'light'
-            },
-            system: {
-                version: '2.0.0-advanced',
-                features: {
-                    digital_signature: true,
-                    pdf_generation: true,
-                    logo_support: fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')),
-                    email_notifications: false,
-                    sms_notifications: false
-                }
-            }
-        };
-
-        if (req.user.role === 'admin') {
-            settings.admin = {
-                auto_backup: true,
-                maintenance_mode: false,
-                max_file_size: '50mb',
-                session_timeout: '7d'
-            };
-        }
-
-        res.json({ settings });
-    } catch (error) {
-        console.error('❌ Error getting settings:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan pengaturan' });
-    }
-});
-
-app.put('/api/settings/user', authenticateToken, async (req, res) => {
-    try {
-        const { notifications, language, theme } = req.body;
-
-        const updateData = {};
-        if (notifications !== undefined) updateData['preferences.notifications'] = notifications;
-        if (language) updateData['preferences.language'] = language;
-        if (theme) updateData['preferences.theme'] = theme;
-
-        await User.findByIdAndUpdate(req.user._id, updateData);
-
-        res.json({ message: 'Pengaturan berhasil disimpan' });
-    } catch (error) {
-        console.error('❌ Error updating user settings:', error);
-        res.status(500).json({ error: 'Gagal menyimpan pengaturan' });
-    }
-});
-
-// Change password
-app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-
-        if (!currentPassword || !newPassword) {
-            return res.status(400).json({ error: 'Password lama dan baru harus diisi' });
-        }
-
-        if (newPassword.length < 6) {
-            return res.status(400).json({ error: 'Password baru minimal 6 karakter' });
-        }
-
-        const user = await User.findById(req.user._id);
-        const validPassword = await bcrypt.compare(currentPassword, user.password);
-
-        if (!validPassword) {
-            return res.status(400).json({ error: 'Password lama tidak benar' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 12);
-        await User.findByIdAndUpdate(req.user._id, { password: hashedPassword });
-
-        res.json({ message: 'Password berhasil diubah' });
-    } catch (error) {
-        console.error('❌ Error changing password:', error);
-        res.status(500).json({ error: 'Gagal mengubah password' });
-    }
-});
-
-// =====================
-// EMAIL NOTIFICATION SYSTEM (Optional Enhancement)
-// =====================
-
-async function sendEmailNotification(to, subject, message, contractData = null) {
-    try {
-        // This is a placeholder for email functionality
-        // You can integrate with services like SendGrid, Nodemailer, etc.
-        console.log(`📧 Email would be sent to: ${to}`);
-        console.log(`📧 Subject: ${subject}`);
-        console.log(`📧 Message: ${message}`);
-        
-        if (contractData) {
-            console.log(`📧 Contract: ${contractData.number}`);
-        }
-        
-        // TODO: Implement actual email sending
-        return true;
-    } catch (error) {
-        console.error('❌ Error sending email:', error);
-        return false;
-    }
-}
-
-// =====================
-// CLEANUP & MAINTENANCE
-// =====================
-
-// Auto cleanup expired contracts
-async function cleanupExpiredContracts() {
-    try {
-        const result = await Contract.updateMany(
-            {
-                expiry_date: { $lt: new Date() },
-                status: { $in: ['sent', 'viewed'] }
-            },
-            { status: 'expired' }
-        );
-        
-        if (result.modifiedCount > 0) {
-            console.log(`🧹 Cleanup: ${result.modifiedCount} contracts marked as expired`);
-        }
-    } catch (error) {
-        console.error('❌ Error in cleanup:', error);
-    }
-}
-
-// Run cleanup every hour
-setInterval(cleanupExpiredContracts, 60 * 60 * 1000);
-
-// =====================
-// BACKUP SYSTEM (Basic)
-// =====================
-
-app.post('/api/admin/backup', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        
-        // Get all data for backup
-        const [users, templates, contracts, history] = await Promise.all([
-            User.find({}).lean(),
-            Template.find({}).lean(),
-            Contract.find({}).lean(),
-            ContractHistory.find({}).lean()
-        ]);
-        
-        const backupData = {
-            timestamp,
-            version: '2.0.0-advanced',
-            data: {
-                users: users.map(u => ({ ...u, password: '[REDACTED]' })), // Don't backup passwords
-                templates,
-                contracts,
-                history
-            },
-            stats: {
-                totalUsers: users.length,
-                totalTemplates: templates.length,
-                totalContracts: contracts.length,
-                totalHistory: history.length
-            }
-        };
-        
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Content-Disposition', `attachment; filename="tradestation_backup_${timestamp}.json"`);
-        res.json(backupData);
-        
-        console.log(`💾 Backup created by ${req.user.name} at ${timestamp}`);
-    } catch (error) {
-        console.error('❌ Error creating backup:', error);
-        res.status(500).json({ error: 'Gagal membuat backup' });
-    }
-});
-
-// =====================
-// SYSTEM MONITORING
-// =====================
-
-app.get('/api/admin/system-info', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const [
-            totalUsers,
-            totalContracts,
-            totalTemplates,
-            recentActivity
-        ] = await Promise.all([
-            User.countDocuments({ is_active: true }),
-            Contract.countDocuments(),
-            Template.countDocuments({ is_active: true }),
-            ContractHistory.find({})
-                .sort({ createdAt: -1 })
-                .limit(10)
-                .populate('performed_by', 'name')
-                .populate('contract_id', 'number')
-        ]);
-        
-        const memoryUsage = process.memoryUsage();
-        const uptime = process.uptime();
-        
-        // Database connection status
-        const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-        
-        const systemInfo = {
-            server: {
-                uptime: Math.floor(uptime),
-                uptimeFormatted: `${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m`,
-                memory: {
-                    used: Math.round(memoryUsage.heapUsed / 1024 / 1024),
-                    total: Math.round(memoryUsage.heapTotal / 1024 / 1024),
-                    external: Math.round(memoryUsage.external / 1024 / 1024)
-                },
-                platform: process.platform,
-                nodeVersion: process.version
-            },
-            database: {
-                status: dbStatus,
-                collections: {
-                    users: totalUsers,
-                    contracts: totalContracts,
-                    templates: totalTemplates
-                }
-            },
-            features: {
-                logoSupport: fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')),
-                pdfGeneration: true,
-                digitalSignature: true,
-                emailNotifications: false, // Set to true when implemented
-                backupSystem: true
-            },
-            recentActivity: recentActivity.map(activity => ({
-                action: activity.action,
-                description: activity.description,
-                user: activity.performed_by?.name || 'System',
-                contract: activity.contract_id?.number || 'N/A',
-                timestamp: activity.createdAt
-            }))
-        };
-        
-        res.json({ systemInfo });
-    } catch (error) {
-        console.error('❌ Error getting system info:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan info sistem' });
-    }
-});
-
-// =====================
-// CONTRACT TEMPLATE VARIABLES ENDPOINT
-// =====================
-
-app.get('/api/templates/:id/variables', authenticateToken, async (req, res) => {
-    try {
-        const template = await Template.findById(req.params.id);
-        if (!template) {
-            return res.status(404).json({ error: 'Template tidak ditemukan' });
-        }
-        
-        // Extract variables from content
-        const content = template.content;
-        const variableRegex = /\{\{([^}]+)\}\}/g;
-        const foundVariables = [];
-        let match;
-        
-        while ((match = variableRegex.exec(content)) !== null) {
-            const variable = match[1].trim();
-            if (!foundVariables.includes(variable)) {
-                foundVariables.push(variable);
-            }
-        }
-        
-        res.json({ 
-            template: {
-                id: template._id,
-                name: template.name,
-                category: template.category
-            },
-            variables: foundVariables,
-            predefinedVariables: template.variables || []
-        });
-    } catch (error) {
-        console.error('❌ Error getting template variables:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan variabel template' });
-    }
-});
-
-// =====================
-// BULK OPERATIONS
-// =====================
-
-app.post('/api/admin/contracts/bulk-action', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const { action, contractIds } = req.body;
-        
-        if (!action || !contractIds || !Array.isArray(contractIds)) {
-            return res.status(400).json({ error: 'Action dan contract IDs harus diisi' });
-        }
-        
-        let result;
-        
-        switch (action) {
-            case 'delete':
-                result = await Contract.updateMany(
-                    { _id: { $in: contractIds } },
-                    { status: 'cancelled' }
-                );
-                break;
-                
-            case 'send':
-                result = await Contract.updateMany(
-                    { _id: { $in: contractIds }, status: 'draft' },
-                    { status: 'sent', sent_at: new Date() }
-                );
-                break;
-                
-            case 'expire':
-                result = await Contract.updateMany(
-                    { _id: { $in: contractIds } },
-                    { status: 'expired' }
-                );
-                break;
-                
-            default:
-                return res.status(400).json({ error: 'Action tidak valid' });
-        }
-        
-        // Log bulk action
-        for (const contractId of contractIds) {
-            await logContractActivity(
-                contractId,
-                `bulk_${action}`,
-                `Bulk action ${action} performed by ${req.user.name}`,
-                req.user._id,
-                req
-            );
-        }
-        
-        res.json({ 
-            message: `Bulk ${action} berhasil`,
-            affectedCount: result.modifiedCount 
-        });
-    } catch (error) {
-        console.error('❌ Error in bulk action:', error);
-        res.status(500).json({ error: 'Gagal melakukan bulk action' });
-    }
-});
-
-// =====================
-// CONTRACT PREVIEW
-// =====================
-
-app.post('/api/contracts/preview', authenticateToken, async (req, res) => {
-    try {
-        const { template_id, user_id, variables } = req.body;
-        
-        const template = await Template.findById(template_id);
-        if (!template) {
-            return res.status(404).json({ error: 'Template tidak ditemukan' });
-        }
-        
-        const user = await User.findById(user_id);
-        if (!user) {
-            return res.status(404).json({ error: 'User tidak ditemukan' });
-        }
-        
-        let content = template.content;
-        
-        // System variables
-        const systemVariables = {
-            '{{USER_NAME}}': user.name,
-            '{{USER_EMAIL}}': user.email,
-            '{{USER_PHONE}}': user.phone || '',
-            '{{TRADING_ID}}': user.trading_account || '',
-            '{{CONTRACT_NUMBER}}': 'PREVIEW-001',
-            '{{CONTRACT_DATE}}': new Date().toLocaleDateString('id-ID'),
-            '{{SIGNED_DATE}}': new Date().toLocaleString('id-ID')
-        };
-        
-        // Replace system variables
-        Object.keys(systemVariables).forEach(key => {
-            const regex = new RegExp(key.replace(/[{}]/g, '\\// Change password
-app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-
-        if (!currentPassword || !newPassword) {
-            return res.status(400).json({ error: 'Password lama dan baru harus diisi' });
-        }
-
-        if (newPassword.length < 6) {
-            return res.status(400).json({ error: 'Password baru minimal 6 karakter' });
-        }
-
-        const user = await User.findById(req.user._id);
-        const validPassword = await bcrypt.compare(currentPassword, user.password);
-
-        if (!validPassword) {
-            return res.status(400).json({ error: 'Password lama tidak benar' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 12);
-        await User.findByIdAndUpdate(req.user._id, { password: hashedPassword });
-
-        res.json({ message: 'Password berhasil diubah' });
-    } catch (error) {
-        console.error('❌ Error changing password:', error);
-        res.status(500).json({ error: 'Gagal mengubah password' });
-    }
-});'), 'g');
-            content = content.replace(regex, systemVariables[key]);
-        });
-        
-        // Replace custom variables
-        if (variables) {
-            Object.keys(variables).forEach(key => {
-                const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-                content = content.replace(regex, variables[key] || `[${key}]`);
-            });
-        }
-        
-        res.json({ 
-            preview: content,
-            template: {
-                name: template.name,
-                category: template.category
-            },
-            user: {
-                name: user.name,
-                email: user.email
-            }
-        });
-    } catch (error) {
-        console.error('❌ Error generating preview:', error);
-        res.status(500).json({ error: 'Gagal membuat preview' });
-    }
-});
-
-// =====================
-// ADVANCED STATISTICS
-// =====================
-
-app.get('/api/admin/analytics', authenticateToken, authenticateAdmin, async (req, res) => {
-    try {
-        const period = req.query.period || '30'; // days
-        const startDate = new Date(Date.now() - parseInt(period) * 24 * 60 * 60 * 1000);
-        
-        // Contract statistics
-        const contractStats = await Contract.aggregate([
-            { $match: { createdAt: { $gte: startDate } } },
-            {
-                $group: {
-                    _id: {
-                        date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                        status: "$status"
-                    },
-                    count: { $sum: 1 },
-                    totalValue: { $sum: "$amount" }
-                }
-            },
-            { $sort: { "_id.date": 1 } }
-        ]);
-        
-        // User activity
-        const userActivity = await ContractHistory.aggregate([
-            { $match: { createdAt: { $gte: startDate } } },
-            {
-                $group: {
-                    _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                    activities: { $sum: 1 }
-                }
-            },
-            { $sort: { "_id": 1 } }
-        ]);
-        
-        // Template usage
-        const templateUsage = await Contract.aggregate([
-            { $match: { createdAt: { $gte: startDate } } },
-            {
-                $lookup: {
-                    from: 'templates',
-                    localField: 'template_id',
-                    foreignField: '_id',
-                    as: 'template'
-                }
-            },
-            { $unwind: { path: '$template', preserveNullAndEmptyArrays: true } },
-            {
-                $group: {
-                    _id: '$template.name',
-                    usage: { $sum: 1 },
-                    totalValue: { $sum: '$amount' }
-                }
-            },
-            { $sort: { usage: -1 } },
-            { $limit: 10 }
-        ]);
-        
-        // Performance metrics
-        const performanceMetrics = await Contract.aggregate([
-            {
-                $group: {
-                    _id: null,
-                    totalContracts: { $sum: 1 },
-                    signedContracts: {
-                        $sum: { $cond: [{ $in: ['$status', ['signed', 'completed']] }, 1, 0] }
-                    },
-                    totalValue: { $sum: '$amount' },
-                    avgSigningTime: {
-                        $avg: {
-                            $cond: [
-                                { $and: ['$sent_at', '$signed_at'] },
-                                { $subtract: ['$signed_at', '$sent_at'] },
-                                null
-                            ]
-                        }
-                    }
-                }
-            }
-        ]);
-        
-        const metrics = performanceMetrics[0] || {};
-        const conversionRate = metrics.totalContracts > 0 ? 
-            (metrics.signedContracts / metrics.totalContracts * 100).toFixed(2) : 0;
-        
-        res.json({
-            period: parseInt(period),
-            contractStats,
-            userActivity,
-            templateUsage,
-            summary: {
-                totalContracts: metrics.totalContracts || 0,
-                signedContracts: metrics.signedContracts || 0,
-                conversionRate: parseFloat(conversionRate),
-                totalValue: metrics.totalValue || 0,
-                avgSigningTime: metrics.avgSigningTime ? 
-                    Math.round(metrics.avgSigningTime / (1000 * 60 * 60)) : 0 // hours
-            }
-        });
-    } catch (error) {
-        console.error('❌ Error generating analytics:', error);
-        res.status(500).json({ error: 'Gagal mendapatkan analitik' });
-    }
-});
-
-// =====================
-// ERROR HANDLING
-// =====================
-
-app.use((req, res) => {
-    res.status(404).json({ 
-        error: 'Endpoint tidak ditemukan',
-        path: req.path,
-        method: req.method,
-        version: '2.0.0-advanced',
-        suggestion: 'Periksa dokumentasi API untuk endpoint yang tersedia'
-    });
-});
-
-app.use((error, req, res, next) => {
-    console.error('❌ Unhandled error:', error);
-    res.status(500).json({ 
-        error: 'Internal server error',
-        version: '2.0.0-advanced',
-        timestamp: new Date().toISOString(),
-        ...(process.env.NODE_ENV === 'development' && { 
-            details: error.message,
-            stack: error.stack 
-        })
-    });
-});
-
-// =====================
-// GRACEFUL SHUTDOWN
-// =====================
-
-process.on('SIGTERM', async () => {
-    console.log('SIGTERM received, shutting down gracefully...');
-    await mongoose.connection.close();
-    process.exit(0);
-});
-
-process.on('SIGINT', async () => {
-    console.log('SIGINT received, shutting down gracefully...');  
-    await mongoose.connection.close();
-    process.exit(0);
-});
-
-// =====================
-// START ADVANCED SERVER
-// =====================
-
-async function startAdvancedServer() {
-    try {
-        await connectDatabase();
-        
-        const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 TradeStation Advanced Digital Contract Server v2.0`);
-            console.log(`📱 Server running on port ${PORT}`);
-            console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
-            console.log(`💾 Database: MongoDB Atlas Connected`);
-            console.log(`🎨 Logo Support: ${fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')) ? 'Enabled' : 'Disabled'}`);
-            console.log(`📋 PDF Engine: Advanced v2.0 with TradeStation Branding`);
-            console.log(`✅ All advanced features operational!`);
-            console.log(`🎯 Ready for production deployment!`);
-            console.log(`\n📚 Available Endpoints:`);
-            console.log(`   • POST /api/auth/login - User authentication`);
-            console.log(`   • GET  /api/auth/me - Get current user info`);
-            console.log(`   • GET  /api/admin/stats - Dashboard statistics (Admin)`);
-            console.log(`   • GET  /api/admin/contracts - Contract management (Admin)`);
-            console.log(`   • GET  /api/admin/templates - Template management (Admin)`);
-            console.log(`   • GET  /api/admin/users - User management (Admin)`);
-            console.log(`   • GET  /api/contracts/access/:token - Public contract access`);
-            console.log(`   • POST /api/contracts/access/:token/sign - Sign contract`);
-            console.log(`   • GET  /api/contracts/download/:id - Download PDF`);
-            console.log(`   • GET  /api/user/contracts - User contracts`);
-            console.log(`   • GET  /api/notifications - Notifications`);
-            console.log(`   • GET  /api/search - Search functionality`);
-            console.log(`   • GET  /api/settings - User settings`);
-            console.log(`   \n🔑 Default Login Credentials:`);
-            console.log(`   Admin: admin@tradestation.com / admin123`);
-            console.log(`   User:  hermanzal@trader.com / trader123`);
-        });
-
-        server.on('error', (error) => {
-            console.error('❌ Server error:', error);
-        });
-
-        // Graceful shutdown
-        process.on('SIGTERM', () => {
-            console.log('SIGTERM signal received: closing HTTP server');
-            server.close(() => {
-                console.log('HTTP server closed');
-            });
-        });
-
-    } catch (error) {
-        console.error('❌ Failed to start advanced server:', error);
-        app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Server running on port ${PORT} (database connection failed)`);
-        });
-    }
-}
-
-startAdvancedServer();api/admin/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+app.delete('/api/admin/contracts/:id', authenticateToken, authenticateAdmin, async (req, res) => {
     try {
         const contract = await Contract.findById(req.params.id);
         if (!contract) {
@@ -3237,4 +1815,847 @@ app.put('/api/admin/users/:id', authenticateToken, authenticateAdmin, async (req
     }
 });
 
-app.delete('/
+app.delete('/api/admin/users/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const user = await User.findById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+        }
+
+        // Prevent admin from deleting themselves
+        if (user._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ error: 'Tidak dapat menghapus akun sendiri' });
+        }
+
+        // Check if user has contracts
+        const userContracts = await Contract.countDocuments({ user_id: req.params.id });
+        
+        if (userContracts > 0) {
+            // Soft delete by deactivating
+            await User.findByIdAndUpdate(req.params.id, { is_active: false });
+            res.json({ message: 'Pengguna berhasil dinonaktifkan' });
+        } else {
+            // Hard delete if no contracts
+            await User.findByIdAndDelete(req.params.id);
+            res.json({ message: 'Pengguna berhasil dihapus' });
+        }
+    } catch (error) {
+        console.error('❌ Error deleting user:', error);
+        res.status(500).json({ error: 'Gagal menghapus pengguna' });
+    }
+});
+
+// =====================
+// USER ROUTES
+// =====================
+
+app.get('/api/user/contracts', authenticateToken, async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const status = req.query.status || '';
+        
+        let query = { user_id: req.user._id };
+        if (status) {
+            query.status = status;
+        }
+        
+        const contracts = await Contract.find(query)
+            .populate('template_id', 'name')
+            .populate('created_by', 'name')
+            .sort({ createdAt: -1 })
+            .limit(limit)
+            .skip((page - 1) * limit)
+            .lean();
+        
+        const total = await Contract.countDocuments(query);
+        
+        // Get status counts
+        const statusCounts = await Contract.aggregate([
+            { $match: { user_id: req.user._id } },
+            { $group: { _id: '$status', count: { $sum: 1 } } }
+        ]);
+        
+        const stats = {
+            total: total,
+            pending: statusCounts.find(s => ['sent', 'viewed'].includes(s._id))?.count || 0,
+            completed: statusCounts.find(s => ['signed', 'completed'].includes(s._id))?.count || 0
+        };
+        
+        res.json({
+            contracts: contracts.map(contract => ({
+                ...contract,
+                template_name: contract.template_id?.name || 'Custom',
+                created_by_name: contract.created_by?.name || 'System'
+            })),
+            stats,
+            pagination: {
+                current: page,
+                total: Math.ceil(total / limit),
+                totalItems: total
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error getting user contracts:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan kontrak pengguna' });
+    }
+});
+
+app.get('/api/user/contracts/:id', authenticateToken, async (req, res) => {
+    try {
+        const contract = await Contract.findOne({
+            _id: req.params.id,
+            user_id: req.user._id
+        })
+        .populate('template_id', 'name content variables')
+        .populate('created_by', 'name');
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        res.json({ contract });
+    } catch (error) {
+        console.error('❌ Error getting user contract:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
+    }
+});
+
+// =====================
+// PUBLIC CONTRACT ACCESS (ENHANCED)
+// =====================
+
+app.get('/api/contracts/access/:token', async (req, res) => {
+    try {
+        const { token } = req.params;
+
+        if (!token || token.length < 32) {
+            return res.status(400).json({ error: 'Token akses tidak valid' });
+        }
+
+        const contract = await Contract.findOne({ access_token: token })
+            .populate('user_id', 'name email phone trading_account is_active')
+            .populate('template_id', 'name content variables');
+
+        if (!contract || !contract.user_id || !contract.user_id.is_active) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan atau akses ditolak' });
+        }
+
+        if (contract.expiry_date && new Date() > contract.expiry_date) {
+            await Contract.findByIdAndUpdate(contract._id, { status: 'expired' });
+            await logContractActivity(contract._id, 'expired', 'Kontrak kedaluwarsa karena tanggal habis', null, req);
+            return res.status(410).json({ error: 'Kontrak sudah kedaluwarsa' });
+        }
+
+        if (contract.status === 'sent') {
+            await Contract.findByIdAndUpdate(contract._id, { 
+                status: 'viewed',
+                viewed_at: new Date()
+            });
+            await logContractActivity(contract._id, 'viewed', 'Kontrak dilihat oleh klien', contract.user_id._id, req);
+        }
+
+        let content = contract.template_id?.content || contract.content || '';
+        const variables = contract.variables || {};
+        
+        const replacements = {
+            '{{USER_NAME}}': contract.user_id.name,
+            '{{USER_EMAIL}}': contract.user_id.email || '',
+            '{{USER_PHONE}}': contract.user_id.phone || '',
+            '{{TRADING_ID}}': contract.user_id.trading_account || '',
+            '{{CONTRACT_NUMBER}}': contract.number,
+            '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
+            '{{AMOUNT}}': formatCurrency(contract.amount),
+            '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
+        };
+
+        Object.keys(replacements).forEach(key => {
+            const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+            content = content.replace(regex, replacements[key]);
+        });
+
+        Object.keys(variables).forEach(key => {
+            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+            content = content.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
+        });
+
+        res.json({
+            data: {
+                ...contract.toObject(),
+                content,
+                canSign: contract.status === 'viewed' || contract.status === 'sent',
+                user: {
+                    name: contract.user_id.name,
+                    email: contract.user_id.email,
+                    phone: contract.user_id.phone,
+                    trading_account: contract.user_id.trading_account
+                },
+                template: contract.template_id ? {
+                    name: contract.template_id.name,
+                    variables: contract.template_id.variables
+                } : null
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error accessing contract:', error);
+        res.status(500).json({ error: 'Gagal mengakses kontrak' });
+    }
+});
+
+app.post('/api/contracts/access/:token/sign', async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { signatureData, variables, clientName, clientEmail } = req.body;
+
+        if (!signatureData) {
+            return res.status(400).json({ error: 'Data tanda tangan diperlukan' });
+        }
+
+        if (!signatureData.startsWith('data:image/')) {
+            return res.status(400).json({ error: 'Format tanda tangan tidak valid' });
+        }
+
+        const contract = await Contract.findOne({ access_token: token })
+            .populate('user_id', 'name email phone trading_account');
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        if (contract.status === 'signed' || contract.status === 'completed') {
+            return res.status(400).json({ error: 'Kontrak sudah ditandatangani' });
+        }
+
+        if (!['sent', 'viewed'].includes(contract.status)) {
+            return res.status(400).json({ error: 'Kontrak belum siap untuk ditandatangani' });
+        }
+
+        if (clientName && clientName.toLowerCase() !== contract.user_id.name.toLowerCase()) {
+            return res.status(400).json({ error: 'Nama klien tidak cocok dengan kontrak' });
+        }
+
+        if (clientEmail && clientEmail.toLowerCase() !== contract.user_id.email.toLowerCase()) {
+            return res.status(400).json({ error: 'Email klien tidak cocok dengan kontrak' });
+        }
+
+        const finalVariables = variables ? { ...contract.variables, ...variables } : contract.variables;
+        const signedAt = new Date();
+        
+        await Contract.findByIdAndUpdate(contract._id, {
+            status: 'signed',
+            signature_data: signatureData,
+            signed_at: signedAt,
+            variables: finalVariables,
+            ip_signed: req.ip,
+            user_agent_signed: req.get('User-Agent'),
+            'metadata.pdf_generated': false
+        });
+
+        await logContractActivity(
+            contract._id, 
+            'signed', 
+            'Kontrak ditandatangani dengan tanda tangan digital', 
+            contract.user_id._id, 
+            req
+        );
+
+        res.json({ 
+            message: 'Kontrak berhasil ditandatangani',
+            pdfDownloadUrl: `/api/contracts/download/${contract._id}`,
+            signedAt: signedAt.toISOString(),
+            contractNumber: contract.number
+        });
+    } catch (error) {
+        console.error('❌ Error signing contract:', error);
+        res.status(500).json({ error: 'Gagal menandatangani kontrak' });
+    }
+});
+
+// =====================
+// ENHANCED DOWNLOAD PDF ENDPOINT
+// =====================
+
+app.get('/api/contracts/download/:contractId', async (req, res) => {
+    try {
+        const { contractId } = req.params;
+        
+        console.log('📥 Advanced download request for contract:', contractId);
+
+        if (!contractId || !mongoose.Types.ObjectId.isValid(contractId)) {
+            console.log('❌ Invalid contract ID:', contractId);
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
+        }
+
+        const contract = await Contract.findById(contractId)
+            .populate('user_id', 'name email phone trading_account')
+            .lean();
+
+        if (!contract) {
+            console.log('❌ Contract not found:', contractId);
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        if (!contract.user_id) {
+            console.log('❌ Contract user not found:', contractId);
+            return res.status(404).json({ error: 'Data user kontrak tidak ditemukan' });
+        }
+
+        console.log('✅ Contract found for advanced generation:', {
+            id: contractId,
+            number: contract.number,
+            status: contract.status,
+            user: contract.user_id.name,
+            amount: contract.amount,
+            hasLogo: fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png'))
+        });
+
+        console.log('🚀 Starting ADVANCED PDF generation with TradeStation logo...');
+        
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('PDF generation timeout - advanced process taking too long')), 45000)
+        );
+        
+        const pdfPromise = generateContractPDF(contract, contract.user_id, contract.signature_data);
+        
+        const pdfBuffer = await Promise.race([pdfPromise, timeoutPromise]);
+
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            throw new Error('Generated PDF is empty or invalid');
+        }
+
+        console.log('✅ ADVANCED PDF generated successfully:', {
+            size: pdfBuffer.length,
+            sizeKB: Math.round(pdfBuffer.length / 1024),
+            contract: contract.number
+        });
+
+        // Update contract metadata
+        await Contract.findByIdAndUpdate(contractId, {
+            'metadata.pdf_generated': true,
+            'metadata.pdf_size': pdfBuffer.length,
+            'metadata.generation_time': Date.now(),
+            $inc: { 'metadata.download_count': 1 }
+        });
+
+        logContractActivity(
+            contract._id,
+            'downloaded',
+            'PDF kontrak advanced diunduh dengan logo TradeStation',
+            null,
+            req
+        ).catch(err => console.warn('⚠️ Failed to log activity:', err.message));
+
+        const safeName = (contract.user_id.name || 'User')
+            .replace(/[^a-zA-Z0-9\s]/g, '')
+            .replace(/\s+/g, '_')
+            .substring(0, 50);
+        
+        const filename = `TradeStation_Kontrak_${contract.number}_${safeName}.pdf`;
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+        res.setHeader('X-PDF-Generator', 'TradeStation Advanced Engine v2.0');
+        res.setHeader('X-Contract-Number', contract.number);
+
+        console.log('📤 Sending ADVANCED PDF to client...');
+        res.send(pdfBuffer);
+
+    } catch (error) {
+        console.error('❌ Advanced download error:', {
+            contractId: req.params.contractId,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+
+        if (res.headersSent) {
+            return res.end();
+        }
+
+        res.status(500).json({ 
+            error: 'Gagal mendownload kontrak advanced',
+            message: error.message,
+            version: '2.0.0-advanced',
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// =====================
+// TEMPLATE VARIABLES ENDPOINT
+// =====================
+
+app.get('/api/templates/:id/variables', authenticateToken, async (req, res) => {
+    try {
+        const template = await Template.findById(req.params.id);
+        if (!template) {
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
+        }
+        
+        // Extract variables from content
+        const content = template.content;
+        const variableRegex = /\{\{([^}]+)\}\}/g;
+        const foundVariables = [];
+        let match;
+        
+        while ((match = variableRegex.exec(content)) !== null) {
+            const variable = match[1].trim();
+            if (!foundVariables.includes(variable)) {
+                foundVariables.push(variable);
+            }
+        }
+        
+        res.json({ 
+            template: {
+                id: template._id,
+                name: template.name,
+                category: template.category
+            },
+            variables: foundVariables,
+            predefinedVariables: template.variables || []
+        });
+    } catch (error) {
+        console.error('❌ Error getting template variables:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan variabel template' });
+    }
+});
+
+// =====================
+// REPORTS & ANALYTICS
+// =====================
+
+app.get('/api/admin/reports/daily', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const date = req.query.date ? new Date(req.query.date) : new Date();
+        const startOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+        const endOfDay = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1);
+
+        const contracts = await Contract.find({
+            createdAt: { $gte: startOfDay, $lt: endOfDay }
+        }).populate('user_id', 'name email');
+
+        const stats = await Contract.aggregate([
+            { $match: { createdAt: { $gte: startOfDay, $lt: endOfDay } } },
+            {
+                $group: {
+                    _id: '$status',
+                    count: { $sum: 1 },
+                    totalValue: { $sum: '$amount' }
+                }
+            }
+        ]);
+
+        res.json({
+            date: date.toISOString().split('T')[0],
+            contracts,
+            statistics: stats,
+            summary: {
+                totalContracts: contracts.length,
+                totalValue: stats.reduce((sum, stat) => sum + stat.totalValue, 0)
+            }
+        });
+    } catch (error) {
+        console.error('❌ Error generating daily report:', error);
+        res.status(500).json({ error: 'Gagal membuat laporan harian' });
+    }
+});
+
+app.get('/api/admin/reports/monthly', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const year = parseInt(req.query.year) || new Date().getFullYear();
+        const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+        
+        const startOfMonth = new Date(year, month - 1, 1);
+        const endOfMonth = new Date(year, month, 0);
+
+        const stats = await Contract.aggregate([
+            { $match: { createdAt: { $gte: startOfMonth, $lte: endOfMonth } } },
+            {
+                $group: {
+                    _id: {
+                        day: { $dayOfMonth: '$createdAt' },
+                        status: '$status'
+                    },
+                    count: { $sum: 1 },
+                    totalValue: { $sum: '$amount' }
+                }
+            },
+            { $sort: { '_id.day': 1 } }
+        ]);
+
+        const summary = await Contract.aggregate([
+            { $match: { createdAt: { $gte: startOfMonth, $lte: endOfMonth } } },
+            {
+                $group: {
+                    _id: null,
+                    totalContracts: { $sum: 1 },
+                    totalValue: { $sum: '$amount' },
+                    signed: {
+                        $sum: {
+                            $cond: [{ $in: ['$status', ['signed', 'completed']] }, 1, 0]
+                        }
+                    }
+                }
+            }
+        ]);
+
+        res.json({
+            period: `${year}-${month.toString().padStart(2, '0')}`,
+            dailyStats: stats,
+            summary: summary[0] || { totalContracts: 0, totalValue: 0, signed: 0 }
+        });
+    } catch (error) {
+        console.error('❌ Error generating monthly report:', error);
+        res.status(500).json({ error: 'Gagal membuat laporan bulanan' });
+    }
+});
+
+app.get('/api/admin/reports/export', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const format = req.query.format || 'json';
+        const startDate = req.query.startDate ? new Date(req.query.startDate) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+        const endDate = req.query.endDate ? new Date(req.query.endDate) : new Date();
+
+        const contracts = await Contract.find({
+            createdAt: { $gte: startDate, $lte: endDate }
+        })
+        .populate('user_id', 'name email phone trading_account')
+        .populate('template_id', 'name category')
+        .populate('created_by', 'name')
+        .lean();
+
+        const exportData = contracts.map(contract => ({
+            number: contract.number,
+            title: contract.title,
+            user_name: contract.user_id?.name || 'Unknown',
+            user_email: contract.user_id?.email || '',
+            user_phone: contract.user_id?.phone || '',
+            trading_account: contract.user_id?.trading_account || '',
+            template_name: contract.template_id?.name || 'Custom',
+            amount: contract.amount,
+            status: contract.status,
+            created_at: contract.createdAt,
+            signed_at: contract.signed_at,
+            created_by: contract.created_by?.name || 'System'
+        }));
+
+        if (format === 'csv') {
+            const csv = [
+                // CSV headers
+                Object.keys(exportData[0] || {}).join(','),
+                // CSV data
+                ...exportData.map(row => Object.values(row).map(val => 
+                    typeof val === 'string' && val.includes(',') ? `"${val}"` : val
+                ).join(','))
+            ].join('\n');
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename="contracts_export.csv"');
+            res.send(csv);
+        } else {
+            res.json({
+                exportDate: new Date().toISOString(),
+                period: {
+                    startDate: startDate.toISOString(),
+                    endDate: endDate.toISOString()
+                },
+                totalRecords: exportData.length,
+                data: exportData
+            });
+        }
+    } catch (error) {
+        console.error('❌ Error exporting data:', error);
+        res.status(500).json({ error: 'Gagal mengeksport data' });
+    }
+});
+
+// =====================
+// HELPER ENDPOINTS
+// =====================
+
+app.get('/api/notifications', authenticateToken, async (req, res) => {
+    try {
+        const notifications = [];
+        
+        if (req.user.role === 'admin') {
+            // Admin notifications
+            const pendingContracts = await Contract.countDocuments({ 
+                status: { $in: ['sent', 'viewed'] } 
+            });
+            
+            if (pendingContracts > 0) {
+                notifications.push({
+                    id: 'pending-contracts',
+                    type: 'warning',
+                    title: 'Kontrak Menunggu',
+                    message: `${pendingContracts} kontrak menunggu tanda tangan`,
+                    timestamp: new Date()
+                });
+            }
+
+            const expiredContracts = await Contract.countDocuments({
+                expiry_date: { $lt: new Date() },
+                status: { $in: ['sent', 'viewed'] }
+            });
+
+            if (expiredContracts > 0) {
+                notifications.push({
+                    id: 'expired-contracts',
+                    type: 'error',
+                    title: 'Kontrak Kedaluwarsa',
+                    message: `${expiredContracts} kontrak telah kedaluwarsa`,
+                    timestamp: new Date()
+                });
+            }
+        } else {
+            // User notifications
+            const userPendingContracts = await Contract.countDocuments({
+                user_id: req.user._id,
+                status: { $in: ['sent', 'viewed'] }
+            });
+
+            if (userPendingContracts > 0) {
+                notifications.push({
+                    id: 'user-pending-contracts',
+                    type: 'info',
+                    title: 'Kontrak Menunggu Tanda Tangan',
+                    message: `Anda memiliki ${userPendingContracts} kontrak yang menunggu tanda tangan`,
+                    timestamp: new Date()
+                });
+            }
+        }
+
+        res.json({ notifications });
+    } catch (error) {
+        console.error('❌ Error getting notifications:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan notifikasi' });
+    }
+});
+
+// =====================
+// SETTINGS & PREFERENCES
+// =====================
+
+app.get('/api/settings', authenticateToken, async (req, res) => {
+    try {
+        const settings = {
+            user: {
+                notifications: req.user.preferences?.notifications ?? true,
+                language: req.user.preferences?.language ?? 'id',
+                theme: req.user.preferences?.theme ?? 'light'
+            },
+            system: {
+                version: '2.0.0-advanced',
+                features: {
+                    digital_signature: true,
+                    pdf_generation: true,
+                    logo_support: fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')),
+                    email_notifications: false,
+                    sms_notifications: false
+                }
+            }
+        };
+
+        if (req.user.role === 'admin') {
+            settings.admin = {
+                auto_backup: true,
+                maintenance_mode: false,
+                max_file_size: '50mb',
+                session_timeout: '7d'
+            };
+        }
+
+        res.json({ settings });
+    } catch (error) {
+        console.error('❌ Error getting settings:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan pengaturan' });
+    }
+});
+
+app.put('/api/settings/user', authenticateToken, async (req, res) => {
+    try {
+        const { notifications, language, theme } = req.body;
+
+        const updateData = {};
+        if (notifications !== undefined) updateData['preferences.notifications'] = notifications;
+        if (language) updateData['preferences.language'] = language;
+        if (theme) updateData['preferences.theme'] = theme;
+
+        await User.findByIdAndUpdate(req.user._id, updateData);
+
+        res.json({ message: 'Pengaturan berhasil disimpan' });
+    } catch (error) {
+        console.error('❌ Error updating user settings:', error);
+        res.status(500).json({ error: 'Gagal menyimpan pengaturan' });
+    }
+});
+
+// =====================
+// SEARCH ENDPOINTS
+// =====================
+
+app.get('/api/search', authenticateToken, async (req, res) => {
+    try {
+        const query = req.query.q;
+        const type = req.query.type || 'all';
+        
+        if (!query || query.length < 2) {
+            return res.status(400).json({ error: 'Query pencarian minimal 2 karakter' });
+        }
+
+        const results = {};
+
+        if (type === 'all' || type === 'contracts') {
+            let contractQuery = {
+                $or: [
+                    { number: { $regex: query, $options: 'i' } },
+                    { title: { $regex: query, $options: 'i' } }
+                ]
+            };
+
+            // Limit user to their own contracts
+            if (req.user.role !== 'admin') {
+                contractQuery.user_id = req.user._id;
+            }
+
+            results.contracts = await Contract.find(contractQuery)
+                .populate('user_id', 'name email')
+                .limit(10)
+                .select('_id number title status amount createdAt');
+        }
+
+        if ((type === 'all' || type === 'users') && req.user.role === 'admin') {
+            results.users = await User.find({
+                $or: [
+                    { name: { $regex: query, $options: 'i' } },
+                    { email: { $regex: query, $options: 'i' } },
+                    { trading_account: { $regex: query, $options: 'i' } }
+                ],
+                is_active: true
+            })
+            .limit(10)
+            .select('_id name email role trading_account');
+        }
+
+        if ((type === 'all' || type === 'templates') && req.user.role === 'admin') {
+            results.templates = await Template.find({
+                $or: [
+                    { name: { $regex: query, $options: 'i' } },
+                    { category: { $regex: query, $options: 'i' } }
+                ],
+                is_active: true
+            })
+            .limit(10)
+            .select('_id name category description usage_count');
+        }
+
+        res.json({ results, query });
+    } catch (error) {
+        console.error('❌ Error in search:', error);
+        res.status(500).json({ error: 'Gagal melakukan pencarian' });
+    }
+});
+
+// =====================
+// ERROR HANDLING
+// =====================
+
+app.use((req, res) => {
+    res.status(404).json({ 
+        error: 'Endpoint tidak ditemukan',
+        path: req.path,
+        method: req.method,
+        version: '2.0.0-advanced',
+        suggestion: 'Periksa dokumentasi API untuk endpoint yang tersedia'
+    });
+});
+
+app.use((error, req, res, next) => {
+    console.error('❌ Unhandled error:', error);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        version: '2.0.0-advanced',
+        timestamp: new Date().toISOString(),
+        ...(process.env.NODE_ENV === 'development' && { 
+            details: error.message,
+            stack: error.stack 
+        })
+    });
+});
+
+// =====================
+// GRACEFUL SHUTDOWN
+// =====================
+
+process.on('SIGTERM', async () => {
+    console.log('SIGTERM received, shutting down gracefully...');
+    await mongoose.connection.close();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('SIGINT received, shutting down gracefully...');  
+    await mongoose.connection.close();
+    process.exit(0);
+});
+
+// =====================
+// START ADVANCED SERVER
+// =====================
+
+async function startAdvancedServer() {
+    try {
+        await connectDatabase();
+        
+        const server = app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 TradeStation Advanced Digital Contract Server v2.0`);
+            console.log(`📱 Server running on port ${PORT}`);
+            console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
+            console.log(`💾 Database: MongoDB Atlas Connected`);
+            console.log(`🎨 Logo Support: ${fs.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')) ? 'Enabled' : 'Disabled'}`);
+            console.log(`📋 PDF Engine: Advanced v2.0 with TradeStation Branding`);
+            console.log(`✅ All advanced features operational!`);
+            console.log(`🎯 Ready for production deployment!`);
+            console.log(`\n📚 Available Endpoints:`);
+            console.log(`   • POST /api/auth/login - User authentication`);
+            console.log(`   • GET  /api/auth/me - Get current user info`);
+            console.log(`   • GET  /api/admin/stats - Dashboard statistics (Admin)`);
+            console.log(`   • GET  /api/admin/contracts - Contract management (Admin)`);
+            console.log(`   • GET  /api/admin/templates - Template management (Admin)`);
+            console.log(`   • GET  /api/admin/users - User management (Admin)`);
+            console.log(`   • GET  /api/contracts/access/:token - Public contract access`);
+            console.log(`   • POST /api/contracts/access/:token/sign - Sign contract`);
+            console.log(`   • GET  /api/contracts/download/:id - Download PDF`);
+            console.log(`   • GET  /api/user/contracts - User contracts`);
+            console.log(`   • GET  /api/notifications - Notifications`);
+            console.log(`   • GET  /api/search - Search functionality`);
+            console.log(`   • GET  /api/settings - User settings`);
+            console.log(`   \n🔑 Default Login Credentials:`);
+            console.log(`   Admin: admin@tradestation.com / admin123`);
+            console.log(`   User:  hermanzal@trader.com / trader123`);
+        });
+
+        server.on('error', (error) => {
+            console.error('❌ Server error:', error);
+        });
+
+        // Graceful shutdown
+        process.on('SIGTERM', () => {
+            console.log('SIGTERM signal received: closing HTTP server');
+            server.close(() => {
+                console.log('HTTP server closed');
+            });
+        });
+
+    } catch (error) {
+        console.error('❌ Failed to start advanced server:', error);
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server running on port ${PORT} (database connection failed)`);
+        });
+    }
+}
+
+startAdvancedServer();
