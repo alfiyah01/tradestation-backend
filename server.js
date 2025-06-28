@@ -385,160 +385,472 @@ function formatCurrency(amount) {
 async function generateContractPDF(contract, user, signatureData) {
     return new Promise((resolve, reject) => {
         try {
+            console.log('🔄 Starting PDF generation for contract:', contract.number);
+            
+            // Validasi input data
+            if (!contract || !user) {
+                throw new Error('Contract atau user data tidak lengkap');
+            }
+
             const doc = new PDFDocument({ 
-                margin: 40,
+                margin: 50,
+                size: 'A4',
+                bufferPages: true,
+                autoFirstPage: true,
                 info: {
                     Title: `Kontrak ${contract.number}`,
-                    Author: 'TradeStation Kontrak Digital',
-                    Subject: contract.title,
+                    Author: 'TradeStation Digital',
+                    Subject: contract.title || 'Kontrak Digital',
                     Creator: 'TradeStation System'
                 }
             });
             
-            let buffers = [];
+            const buffers = [];
             
-            doc.on('data', buffers.push.bind(buffers));
-            doc.on('end', () => {
-                const pdfData = Buffer.concat(buffers);
-                resolve(pdfData);
+            // Event handlers dengan error handling
+            doc.on('data', (chunk) => {
+                buffers.push(chunk);
             });
-            doc.on('error', reject);
-
-            // HEADER BARU - sesuai format PDF
-            doc.fontSize(16).font('Helvetica-Bold').text('PT. KONSULTAN PROFESIONAL INDONESIA', 40, 40, { align: 'center' });
-            doc.moveDown(0.3);
-            doc.fontSize(12).font('Helvetica-Italic').text('Partner Of', { align: 'center' });
-            doc.moveDown(0.5);
             
-            // Logo TradeStation (text version)
-            doc.fontSize(24).font('Helvetica-Bold').fillColor('#0066CC').text('TradeStation', { align: 'center' });
-            doc.fillColor('black');
-            doc.moveDown(1);
+            doc.on('end', () => {
+                try {
+                    const pdfData = Buffer.concat(buffers);
+                    console.log('✅ PDF generated successfully, size:', pdfData.length);
+                    resolve(pdfData);
+                } catch (error) {
+                    console.error('❌ Error combining PDF buffers:', error);
+                    reject(error);
+                }
+            });
+            
+            doc.on('error', (error) => {
+                console.error('❌ PDFDocument error:', error);
+                reject(error);
+            });
+
+            // Mulai membuat PDF
+            console.log('📝 Adding content to PDF...');
+
+            // HEADER
+            doc.fontSize(16)
+               .font('Helvetica-Bold')
+               .text('PT. KONSULTAN PROFESIONAL INDONESIA', { align: 'center' });
+            
+            doc.moveDown(0.5);
+            doc.fontSize(12)
+               .font('Helvetica')
+               .text('Partner Of', { align: 'center' });
+            
+            doc.moveDown(0.5);
+            doc.fontSize(20)
+               .font('Helvetica-Bold')
+               .fillColor('#0066CC')
+               .text('TradeStation', { align: 'center' });
+            
+            doc.fillColor('black').moveDown(1);
             
             // Garis pemisah
-            doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
+            doc.moveTo(50, doc.y)
+               .lineTo(550, doc.y)
+               .stroke();
+            
             doc.moveDown(1);
             
             // Judul kontrak
-            doc.fontSize(14).font('Helvetica-Bold').text('Perjanjian Layanan Kerja Sama Konsultasi Investasi', { align: 'center' });
+            doc.fontSize(14)
+               .font('Helvetica-Bold')
+               .text('PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI', { align: 'center' });
+            
             doc.moveDown(0.5);
-            doc.fontSize(11).font('Helvetica').text(`Nomor Kontrak: ${contract.number}`, { align: 'center' });
+            doc.fontSize(11)
+               .font('Helvetica')
+               .text(`Nomor Kontrak: ${contract.number || 'N/A'}`, { align: 'center' });
+            
+            doc.moveDown(1.5);
+
+            // Info kontrak dalam box
+            const infoY = doc.y;
+            doc.rect(50, infoY, 500, 80).stroke();
+            
+            doc.fontSize(10)
+               .font('Helvetica-Bold')
+               .text('INFORMASI KONTRAK', 60, infoY + 10);
+            
+            doc.fontSize(9)
+               .font('Helvetica')
+               .text(`Nama: ${user.name || 'N/A'}`, 60, infoY + 25)
+               .text(`Email: ${user.email || 'N/A'}`, 60, infoY + 40)
+               .text(`Trading ID: ${user.trading_account || 'N/A'}`, 300, infoY + 25)
+               .text(`Nilai: ${formatCurrency(contract.amount || 0)}`, 300, infoY + 40)
+               .text(`Tanggal: ${new Date(contract.createdAt).toLocaleDateString('id-ID')}`, 60, infoY + 55);
+            
+            doc.y = infoY + 90;
             doc.moveDown(1);
 
-            // Memproses isi kontrak
+            // Konten kontrak
+            console.log('📋 Processing contract content...');
+            
             let content = contract.content || '';
             
-            // Mengganti variabel sistem
+            // Jika tidak ada content, gunakan content default sederhana
+            if (!content.trim()) {
+                content = `
+# PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI
+
+**Pihak A:** {{USER_NAME}}
+**Pihak B:** PT. Konsultasi Profesional Indonesia
+
+Dengan ini kedua belah pihak sepakat untuk melakukan kerja sama konsultasi investasi dengan nilai {{AMOUNT}} sesuai dengan ketentuan yang berlaku.
+
+**Tanggal Kontrak:** {{CONTRACT_DATE}}
+**Nomor Kontrak:** {{CONTRACT_NUMBER}}
+
+Kontrak ini sah dan mengikat kedua belah pihak.
+                `;
+            }
+            
+            // Replace variables dengan safe handling
             const replacements = {
-                '{{USER_NAME}}': user.name || '',
-                '{{USER_EMAIL}}': user.email || '',
-                '{{USER_PHONE}}': user.phone || '',
-                '{{TRADING_ID}}': user.trading_account || '',
-                '{{CONTRACT_NUMBER}}': contract.number,
-                '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
-                '{{AMOUNT}}': formatCurrency(contract.amount),
-                '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
+                '{{USER_NAME}}': user.name || '[Nama User]',
+                '{{USER_EMAIL}}': user.email || '[Email User]',
+                '{{USER_PHONE}}': user.phone || '[Telepon User]',
+                '{{TRADING_ID}}': user.trading_account || '[Trading ID]',
+                '{{CONTRACT_NUMBER}}': contract.number || '[Nomor Kontrak]',
+                '{{CONTRACT_DATE}}': contract.createdAt ? 
+                    new Date(contract.createdAt).toLocaleDateString('id-ID') : 
+                    '[Tanggal Kontrak]',
+                '{{AMOUNT}}': contract.amount ? 
+                    formatCurrency(contract.amount) : 
+                    '[Jumlah]',
+                '{{SIGNED_DATE}}': contract.signed_at ? 
+                    new Date(contract.signed_at).toLocaleString('id-ID') : 
+                    '[Tanggal TTD]'
             };
 
-            // Mengganti variabel sistem
+            // Replace system variables
             Object.keys(replacements).forEach(key => {
-                const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
-                content = content.replace(regex, replacements[key]);
-            });
-
-            // Mengganti variabel kustom
-            Object.keys(contract.variables || {}).forEach(key => {
-                const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-                content = content.replace(regex, contract.variables[key] || `[${key} - Tidak Diisi]`);
-            });
-
-            // Memproses konten baris per baris dengan format baru
-            const lines = content.split('\n');
-            
-            lines.forEach(line => {
-                line = line.trim();
-                if (line) {
-                    // Cek apakah perlu halaman baru
-                    if (doc.y > 720) {
-                        doc.addPage();
-                        // Header ulang di halaman baru
-                        doc.fontSize(16).font('Helvetica-Bold').text('PT. KONSULTAN PROFESIONAL INDONESIA', 40, 40, { align: 'center' });
-                        doc.fontSize(12).font('Helvetica-Italic').text('Partner Of', { align: 'center' });
-                        doc.fontSize(18).font('Helvetica-Bold').fillColor('#0066CC').text('TradeStation', { align: 'center' });
-                        doc.fillColor('black').moveDown(1);
-                    }
-                    
-                    if (line.startsWith('# ')) {
-                        doc.fontSize(14).font('Helvetica-Bold').text(line.substring(2), { align: 'center' });
-                        doc.moveDown(0.5);
-                    } else if (line.startsWith('## ')) {
-                        doc.fontSize(12).font('Helvetica-Bold').fillColor('#0066CC').text(line.substring(3));
-                        doc.fillColor('black');
-                        doc.moveDown(0.3);
-                    } else if (line.startsWith('**') && line.endsWith('**')) {
-                        const text = line.replace(/\*\*/g, '');
-                        doc.fontSize(10).font('Helvetica-Bold').text(text);
-                        doc.moveDown(0.2);
-                    } else if (line.startsWith('---')) {
-                        doc.moveDown(0.3);
-                        doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-                        doc.moveDown(0.3);
-                    } else {
-                        const processedLine = line.replace(/\*\*(.*?)\*\*/g, '$1');
-                        doc.fontSize(9).font('Helvetica').text(processedLine, { 
-                            align: 'justify',
-                            lineGap: 1
-                        });
-                        doc.moveDown(0.15);
-                    }
+                try {
+                    const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+                    content = content.replace(regex, replacements[key]);
+                } catch (error) {
+                    console.warn('⚠️ Error replacing variable:', key);
                 }
             });
 
-            // Bagian tanda tangan - halaman baru
+            // Replace custom variables
+            if (contract.variables && typeof contract.variables === 'object') {
+                Object.keys(contract.variables).forEach(key => {
+                    try {
+                        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+                        const value = contract.variables[key] || `[${key} - Tidak Diisi]`;
+                        content = content.replace(regex, value);
+                    } catch (error) {
+                        console.warn('⚠️ Error replacing custom variable:', key);
+                    }
+                });
+            }
+
+            // Process content line by line dengan safety check
+            const lines = content.split('\n');
+            let lineCount = 0;
+            
+            for (const line of lines) {
+                try {
+                    lineCount++;
+                    const trimmedLine = line.trim();
+                    
+                    // Safety check - jangan buat PDF terlalu panjang
+                    if (lineCount > 500) {
+                        doc.fontSize(10)
+                           .text('... [Konten dipotong untuk mencegah error] ...', { align: 'center' });
+                        break;
+                    }
+                    
+                    // Check if need new page
+                    if (doc.y > 750) {
+                        doc.addPage();
+                    }
+                    
+                    if (!trimmedLine) {
+                        doc.moveDown(0.3);
+                        continue;
+                    }
+                    
+                    // Format different line types
+                    if (trimmedLine.startsWith('# ')) {
+                        doc.fontSize(12)
+                           .font('Helvetica-Bold')
+                           .text(trimmedLine.substring(2), { align: 'center' });
+                        doc.moveDown(0.5);
+                    } else if (trimmedLine.startsWith('## ')) {
+                        doc.fontSize(11)
+                           .font('Helvetica-Bold')
+                           .fillColor('#0066CC')
+                           .text(trimmedLine.substring(3));
+                        doc.fillColor('black');
+                        doc.moveDown(0.3);
+                    } else if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
+                        const text = trimmedLine.replace(/\*\*/g, '');
+                        doc.fontSize(9)
+                           .font('Helvetica-Bold')
+                           .text(text);
+                        doc.moveDown(0.2);
+                    } else if (trimmedLine === '---') {
+                        doc.moveDown(0.3);
+                        doc.moveTo(50, doc.y)
+                           .lineTo(550, doc.y)
+                           .stroke();
+                        doc.moveDown(0.3);
+                    } else {
+                        // Regular text
+                        const processedLine = trimmedLine.replace(/\*\*(.*?)\*\*/g, '$1');
+                        doc.fontSize(9)
+                           .font('Helvetica')
+                           .text(processedLine, {
+                               align: 'justify',
+                               lineGap: 2
+                           });
+                        doc.moveDown(0.2);
+                    }
+                } catch (lineError) {
+                    console.warn(`⚠️ Error processing line ${lineCount}:`, lineError.message);
+                    // Skip this line and continue
+                }
+            }
+
+            // Signature section
             doc.addPage();
             
-            // Header tanda tangan
-            doc.fontSize(16).font('Helvetica-Bold').text('PT. KONSULTAN PROFESIONAL INDONESIA', 40, 40, { align: 'center' });
-            doc.fontSize(12).font('Helvetica-Italic').text('Partner Of', { align: 'center' });
-            doc.fontSize(18).font('Helvetica-Bold').fillColor('#0066CC').text('TradeStation', { align: 'center' });
-            doc.fillColor('black').moveDown(2);
+            // Header untuk halaman tanda tangan
+            doc.fontSize(16)
+               .font('Helvetica-Bold')
+               .text('HALAMAN PENANDATANGANAN', { align: 'center' });
+            
+            doc.moveDown(2);
             
             if (signatureData && contract.signed_at) {
-                doc.fontSize(12).font('Helvetica-Bold').text('KONTRAK TELAH DITANDATANGANI', { align: 'center' });
-                doc.moveDown(1);
+                doc.fontSize(12)
+                   .font('Helvetica-Bold')
+                   .fillColor('#008000')
+                   .text('✓ KONTRAK TELAH DITANDATANGANI', { align: 'center' });
                 
-                // Area tanda tangan
-                const signatureY = doc.y + 50;
+                doc.fillColor('black');
+                doc.moveDown(2);
+                
+                // Tanda tangan area
+                const signY = doc.y;
                 
                 // Kolom kiri - Pihak B
-                doc.fontSize(11).font('Helvetica-Bold').text('Perwakilan Pihak B:', 80, signatureY);
-                doc.moveDown(3);
-                doc.fontSize(10).font('Helvetica').text('Prof. Bima Agung Rachel', 80);
+                doc.fontSize(10)
+                   .font('Helvetica-Bold')
+                   .text('Perwakilan Pihak B:', 80, signY);
                 
-                // Kolom kanan - Pihak A  
-                doc.fontSize(11).font('Helvetica-Bold').text('Tanda tangan Pihak A:', 350, signatureY);
-                doc.fontSize(10).font('Helvetica').text(`( ${user.name} )`, 350, signatureY + 45);
+                doc.fontSize(9)
+                   .font('Helvetica')
+                   .text('Prof. Bima Agung Rachel', 80, signY + 60);
                 
-                doc.moveDown(4);
-                doc.fontSize(10).font('Helvetica').text(`Tanggal Penandatanganan: ${new Date(contract.signed_at).toLocaleDateString('id-ID')}`, { align: 'center' });
+                // Kolom kanan - Pihak A
+                doc.fontSize(10)
+                   .font('Helvetica-Bold')
+                   .text('Pihak A:', 350, signY);
+                
+                doc.fontSize(9)
+                   .font('Helvetica')
+                   .text(`${user.name}`, 350, signY + 60);
+                
+                doc.moveDown(6);
+                doc.fontSize(9)
+                   .text(`Ditandatangani pada: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, 
+                         { align: 'center' });
                 
             } else {
-                doc.fontSize(12).font('Helvetica').text('MENUNGGU TANDA TANGAN', { align: 'center' });
+                doc.fontSize(12)
+                   .fillColor('#FF6600')
+                   .text('⏳ MENUNGGU TANDA TANGAN', { align: 'center' });
+                doc.fillColor('black');
             }
 
             // Footer
-            doc.fontSize(8).font('Helvetica-Italic').text(
-                `Dokumen ini dibuat secara otomatis oleh TradeStation pada ${new Date().toLocaleString('id-ID')}`,
-                40, 750, { align: 'center' }
-            );
+            doc.fontSize(8)
+               .font('Helvetica')
+               .text(`Dokumen dibuat otomatis oleh TradeStation pada ${new Date().toLocaleString('id-ID')}`,
+                     50, 770, { align: 'center' });
 
+            console.log('🔚 Finalizing PDF...');
             doc.end();
+
         } catch (error) {
-            console.error('Error generating PDF:', error);
-            reject(error);
+            console.error('❌ Error in PDF generation:', error);
+            reject(new Error(`PDF generation failed: ${error.message}`));
         }
     });
 }
+
+// Endpoint download yang diperbaiki - GANTI YANG LAMA
+app.get('/api/contracts/download/:contractId', async (req, res) => {
+    try {
+        const { contractId } = req.params;
+        
+        console.log('📥 Download request for contract:', contractId);
+
+        // Validasi ID
+        if (!contractId || !mongoose.Types.ObjectId.isValid(contractId)) {
+            console.log('❌ Invalid contract ID:', contractId);
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
+        }
+
+        // Cari kontrak
+        const contract = await Contract.findById(contractId)
+            .populate('user_id', 'name email phone trading_account')
+            .lean();
+
+        if (!contract) {
+            console.log('❌ Contract not found:', contractId);
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        if (!contract.user_id) {
+            console.log('❌ Contract user not found:', contractId);
+            return res.status(404).json({ error: 'Data user kontrak tidak ditemukan' });
+        }
+
+        console.log('✅ Contract found:', {
+            id: contractId,
+            number: contract.number,
+            status: contract.status,
+            user: contract.user_id.name,
+            amount: contract.amount
+        });
+
+        // Generate PDF dengan timeout protection
+        console.log('🔄 Starting PDF generation...');
+        
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('PDF generation timeout')), 30000)
+        );
+        
+        const pdfPromise = generateContractPDF(contract, contract.user_id, contract.signature_data);
+        
+        const pdfBuffer = await Promise.race([pdfPromise, timeoutPromise]);
+
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            throw new Error('PDF buffer kosong atau tidak valid');
+        }
+
+        console.log('✅ PDF generated successfully, size:', pdfBuffer.length);
+
+        // Log activity (non-blocking)
+        logContractActivity(
+            contract._id,
+            'downloaded',
+            'PDF kontrak diunduh',
+            null,
+            req
+        ).catch(err => console.warn('⚠️ Failed to log activity:', err.message));
+
+        // Buat filename yang aman
+        const safeName = (contract.user_id.name || 'User')
+            .replace(/[^a-zA-Z0-9\s]/g, '')
+            .replace(/\s+/g, '_')
+            .substring(0, 50);
+        
+        const filename = `Kontrak_${contract.number}_${safeName}.pdf`;
+
+        // Set response headers
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
+        console.log('📤 Sending PDF to client...');
+        res.send(pdfBuffer);
+
+    } catch (error) {
+        console.error('❌ Download error:', {
+            contractId: req.params.contractId,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+
+        if (res.headersSent) {
+            return res.end();
+        }
+
+        res.status(500).json({ 
+            error: 'Gagal mendownload kontrak',
+            message: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// Helper function untuk format currency yang aman
+function formatCurrency(amount) {
+    try {
+        if (typeof amount !== 'number' || isNaN(amount)) {
+            return 'Rp 0';
+        }
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    } catch (error) {
+        console.warn('⚠️ Error formatting currency:', error);
+        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
+    }
+}
+
+// Endpoint untuk test PDF generation (tambahan untuk debugging)
+app.get('/api/contracts/:contractId/test-pdf', authenticateToken, async (req, res) => {
+    try {
+        const { contractId } = req.params;
+        
+        const contract = await Contract.findById(contractId)
+            .populate('user_id', 'name email phone trading_account')
+            .lean();
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        // Test data untuk debugging
+        const testData = {
+            contract: {
+                id: contract._id,
+                number: contract.number,
+                title: contract.title,
+                amount: contract.amount,
+                status: contract.status,
+                content_available: !!contract.content,
+                content_length: contract.content ? contract.content.length : 0,
+                variables: contract.variables || {},
+                signed_at: contract.signed_at,
+                has_signature: !!contract.signature_data
+            },
+            user: contract.user_id ? {
+                name: contract.user_id.name,
+                email: contract.user_id.email,
+                phone: contract.user_id.phone,
+                trading_account: contract.user_id.trading_account
+            } : null,
+            system_info: {
+                node_version: process.version,
+                memory_usage: process.memoryUsage(),
+                uptime: process.uptime()
+            },
+            pdf_ready: contract.user_id && contract.content
+        };
+
+        res.json(testData);
+    } catch (error) {
+        console.error('Test PDF error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 // =====================
 // MIDDLEWARE AUTENTIKASI - Untuk mengecek login user
