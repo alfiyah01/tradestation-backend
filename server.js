@@ -895,10 +895,15 @@ app.get('/api/contracts/download/:contractId', async (req, res) => {
             req
         );
 
+        const filename = `Kontrak_${contract.number}_${contract.user_id.name.replace(/\s+/g, '_')}.pdf`;
+
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="Kontrak_${contract.number}_${contract.user_id.name.replace(/\s+/g, '_')}.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.setHeader('Content-Length', pdfBuffer.length);
-        
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
         res.send(pdfBuffer);
     } catch (error) {
         console.error('Error download kontrak:', error);
