@@ -1,0 +1,42 @@
+{
+  "name": "TradeStation - Kontrak Digital",
+  "short_name": "TradeStation",
+  "description": "Sistem Kontrak Digital Profesional",
+  "version": "3.0.0",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0ea5e9",
+  "theme_color": "#0ea5e9",
+  "orientation": "portrait",
+  "scope": "/",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Buat Kontrak Baru",
+      "short_name": "Kontrak Baru",
+      "description": "Membuat kontrak digital baru",
+      "url": "/new-contract",
+      "icons": [
+        {
+          "src": "/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ]
+}
