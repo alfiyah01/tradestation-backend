@@ -1,28 +1,50 @@
 {
-  "name": "tradestation-backend",
-  "version": "1.0.0",
-  "description": "TradeStation Backend",
+  "name": "tradestation-kontrak-digital",
+  "version": "2.3.0",
+  "description": "TradeStation Digital Contract System - Enhanced",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "build": "npm install",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [
+    "contract",
+    "digital",
+    "tradestation",
+    "mongodb",
+    "express",
+    "pdf"
+  ],
+  "author": "TradeStation Team",
+  "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
-    "mongoose": "^7.5.0",
+    "mongoose": "^7.6.3",
     "bcrypt": "^5.1.1",
     "jsonwebtoken": "^9.0.2",
     "cors": "^2.8.5",
+    "crypto": "^1.0.1",
     "pdfkit": "^0.13.0",
-    "multer": "^1.4.5-lts.1",
-    "nodemailer": "^6.9.4",
-    "node-cron": "^3.0.2",
-    "express-rate-limit": "^6.8.1",
-    "helmet": "^7.0.0",
-    "compression": "^1.7.4",
-    "morgan": "^1.10.0",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "express-rate-limit": "^7.1.5",
+    "helmet": "^7.1.0",
+    "validator": "^13.11.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   },
   "engines": {
-    "node": ">=16.0.0"
-  }
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/kontrak-digital.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/kontrak-digital/issues"
+  },
+  "homepage": "https://github.com/your-username/kontrak-digital#readme"
 }
