@@ -23,28 +23,83 @@ app.use(helmet({
     contentSecurityPolicy: false
 }));
 
-// Enhanced CORS
+// =====================
+// ENHANCED CORS CONFIGURATION - PERBAIKAN UTAMA
+// =====================
+
+const allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5000',
+    'http://localhost:8080',
+    'https://kontrak-production.up.railway.app',
+    'https://kontrakdigital.com',
+    'https://www.kontrakdigital.com',
+    process.env.FRONTEND_URL
+].filter(Boolean);
+
+console.log('🔧 Allowed CORS origins:', allowedOrigins);
+
+// Enhanced CORS Configuration
 app.use(cors({
     origin: function (origin, callback) {
-        const allowedOrigins = [
-            'http://localhost:3000',
-            'http://localhost:5000',
-            'http://localhost:8080',
-            'https://kontrak-production.up.railway.app',
-            'https://kontrakdigital.com',
-            process.env.FRONTEND_URL
-        ].filter(Boolean);
+        console.log('🌐 Request origin:', origin);
         
-        if (!origin || allowedOrigins.includes(origin)) {
-            callback(null, true);
-        } else {
-            callback(null, true); // Allow all for now
+        // Allow requests with no origin (mobile apps, postman, etc)
+        if (!origin) {
+            console.log('✅ No origin - allowing');
+            return callback(null, true);
         }
+        
+        if (allowedOrigins.includes(origin)) {
+            console.log('✅ Origin allowed:', origin);
+            return callback(null, true);
+        }
+        
+        // For debugging: Allow all origins temporarily
+        console.log('⚠️ Origin not in allowlist but allowing anyway for debugging:', origin);
+        return callback(null, true);
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept']
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'X-Requested-With', 
+        'Accept',
+        'Origin',
+        'Cache-Control',
+        'X-File-Name'
+    ],
+    exposedHeaders: ['Content-Length', 'Content-Range'],
+    maxAge: 86400 // 24 hours
 }));
+
+// Explicit OPTIONS handler for all routes
+app.options('*', (req, res) => {
+    console.log('✅ Handling OPTIONS preflight for:', req.path, 'from origin:', req.headers.origin);
+    res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
+    res.status(200).end();
+});
+
+// Manual CORS headers for all responses
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    
+    console.log(`🌐 ${req.method} ${req.path} from origin: ${origin || 'no-origin'}`);
+    
+    if (!origin || allowedOrigins.includes(origin)) {
+        res.header('Access-Control-Allow-Origin', origin || '*');
+    }
+    
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-File-Name');
+    
+    next();
+});
 
 // Enhanced rate limiting
 const limiter = rateLimit({
@@ -87,7 +142,7 @@ app.set('trust proxy', 1);
 app.use((req, res, next) => {
     const timestamp = new Date().toISOString();
     const ip = req.ip || req.connection.remoteAddress;
-    console.log(`[${timestamp}] ${req.method} ${req.path} - IP: ${ip}`);
+    console.log(`[${timestamp}] ${req.method} ${req.path} - IP: ${ip} - Origin: ${req.headers.origin || 'none'}`);
     next();
 });
 
@@ -1055,8 +1110,15 @@ async function generateContractPDF(contract, user, signatureData) {
 // ROUTES
 // =====================
 
-// Enhanced health check
+// Enhanced health check with CORS debugging
 app.get('/api/health', async (req, res) => {
+    console.log('🏥 Health check request from:', req.headers.origin || 'no-origin');
+    console.log('🏥 Request headers:', JSON.stringify({
+        origin: req.headers.origin,
+        'user-agent': req.headers['user-agent'],
+        'accept': req.headers.accept
+    }, null, 2));
+    
     try {
         let dbStatus = 'disconnected';
         let dbDetails = {};
@@ -1073,7 +1135,7 @@ app.get('/api/health', async (req, res) => {
         
         const memoryUsage = process.memoryUsage();
         
-        res.json({
+        const healthData = {
             status: 'sehat',
             timestamp: new Date().toISOString(),
             database: dbStatus,
@@ -1081,21 +1143,41 @@ app.get('/api/health', async (req, res) => {
             mongodb: 'MongoDB Atlas',
             uptime: Math.floor(process.uptime()),
             version: '2.3.0',
+            cors_origin: req.headers.origin,
+            allowed_origins: allowedOrigins,
             memory: {
                 used: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
                 total: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB'
             },
             database_details: dbDetails
-        });
+        };
+        
+        console.log('✅ Health check response being sent');
+        
+        // Set CORS headers explicitly
+        res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Content-Type', 'application/json');
+        
+        res.json(healthData);
+        
     } catch (error) {
-        console.error('Health check error:', error);
-        res.status(503).json({
+        console.error('❌ Health check error:', error);
+        
+        const errorData = {
             status: 'tidak sehat',
             timestamp: new Date().toISOString(),
             database: 'error',
             error: error.message,
-            uptime: Math.floor(process.uptime())
-        });
+            uptime: Math.floor(process.uptime()),
+            cors_origin: req.headers.origin
+        };
+        
+        res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+        res.header('Access-Control-Allow-Credentials', 'true');
+        res.header('Content-Type', 'application/json');
+        
+        res.status(503).json(errorData);
     }
 });
 
@@ -1684,7 +1766,7 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, checkDatabaseCo
         res.json({
             message: 'Kontrak berhasil dibuat',
             data: contract,
-            accessLink: `${process.env.FRONTEND_URL || 'https://kontrak-production.up.railway.app'}/?token=${accessToken}`
+            accessLink: `${process.env.FRONTEND_URL || 'https://kontrakdigital.com'}/?token=${accessToken}`
         });
     } catch (error) {
         console.error('Error membuat kontrak:', error);
@@ -2131,6 +2213,7 @@ app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
 // =====================
 
 app.use((req, res) => {
+    console.log('❌ 404 - Endpoint not found:', req.method, req.path);
     res.status(404).json({ 
         error: 'Endpoint tidak ditemukan',
         code: 'ENDPOINT_NOT_FOUND',
@@ -2208,6 +2291,8 @@ async function startServer() {
             console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
             console.log(`💾 Database: MongoDB Atlas ${dbConnected ? 'Terhubung' : 'Terputus'}`);
             console.log(`🔒 Security: Enhanced with Helmet & Rate Limiting`);
+            console.log(`🌐 CORS: Configured for multiple origins`);
+            console.log(`🔧 Allowed Origins:`, allowedOrigins);
             console.log(`✅ Semua fitur berfungsi dengan baik!`);
             console.log(`📖 API Documentation: /api/health untuk status server`);
         });
