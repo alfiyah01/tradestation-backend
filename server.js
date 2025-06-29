@@ -100,15 +100,11 @@ const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secre
 
 // Enhanced connection options
 const mongoOptions = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 5000,
     socketTimeoutMS: 45000,
-    bufferCommands: false,
-    bufferMaxEntries: 0,
     retryWrites: true,
-    w: 'majority'
+    writeConcern: { w: 'majority' }
 };
 
 // =====================
@@ -428,6 +424,8 @@ async function connectDatabase() {
     try {
         console.log('🔗 Menghubungkan ke MongoDB Atlas...');
         
+        mongoose.set('strictQuery', false);
+
         await mongoose.connect(MONGODB_URI, mongoOptions);
         
         mongoose.connection.on('connected', () => {
