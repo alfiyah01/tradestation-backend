@@ -5,267 +5,66 @@ const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
-const fs = require('fs').promises;
-const fsSync = require('fs');
-const path = require('path');
-const multer = require('multer');
-const nodemailer = require('nodemailer');
-const cron = require('node-cron');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const compression = require('compression');
-const morgan = require('morgan');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // =====================
-// ENHANCED SECURITY & MIDDLEWARE
+// PENGATURAN DASAR
 // =====================
 
-// Security headers
-app.use(helmet({
-    contentSecurityPolicy: {
-        directives: {
-            defaultSrc: ["'self'"],
-            styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-            imgSrc: ["'self'", "data:", "blob:"],
-            fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
-            connectSrc: ["'self'"],
-            frameSrc: ["'none'"],
-            objectSrc: ["'none'"]
-        }
-    },
-    crossOriginEmbedderPolicy: false
-}));
-
-// Compression
-app.use(compression({
-    filter: (req, res) => {
-        if (req.headers['x-no-compression']) {
-            return false;
-        }
-        return compression.filter(req, res);
-    },
-    level: 6,
-    threshold: 1024
-}));
-
-// Enhanced CORS
 app.use(cors({
-    origin: process.env.NODE_ENV === 'production' 
-        ? [process.env.FRONTEND_URL, 'https://your-domain.com'] 
-        : true,
+    origin: true,
     credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-    exposedHeaders: ['X-Total-Count', 'X-Page-Count']
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-// Body parsing with size limits
-app.use(express.json({ 
-    limit: '50mb',
-    verify: (req, res, buf) => {
-        req.rawBody = buf;
-    }
-}));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-
-// Static files with caching
-app.use(express.static('public', {
-    maxAge: process.env.NODE_ENV === 'production' ? '1d' : 0,
-    etag: true,
-    lastModified: true
-}));
-
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1);
 
-// Enhanced Rate Limiting
-const createRateLimit = (windowMs, max, message) => rateLimit({
-    windowMs,
-    max,
-    message: { error: message },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => {
-        // Skip rate limiting for health checks
-        return req.path === '/api/health';
+// Rate limiting
+const requests = new Map();
+app.use((req, res, next) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    const now = Date.now();
+    const windowMs = 15 * 60 * 1000; // 15 menit
+    const maxRequests = 100;
+    
+    if (!requests.has(ip)) {
+        requests.set(ip, { count: 1, resetTime: now + windowMs });
+        return next();
     }
+    
+    const requestData = requests.get(ip);
+    if (now > requestData.resetTime) {
+        requests.set(ip, { count: 1, resetTime: now + windowMs });
+        return next();
+    }
+    
+    if (requestData.count >= maxRequests) {
+        return res.status(429).json({ error: 'Terlalu banyak permintaan' });
+    }
+    
+    requestData.count++;
+    next();
 });
 
-// Different rate limits for different endpoints
-app.use('/api/auth', createRateLimit(15 * 60 * 1000, 10, 'Terlalu banyak percobaan login'));
-app.use('/api', createRateLimit(15 * 60 * 1000, 200, 'Terlalu banyak permintaan'));
-
-// Advanced logging
-const logFormat = process.env.NODE_ENV === 'production' 
-    ? 'combined' 
-    : ':method :url :status :response-time ms - :res[content-length]';
-
-app.use(morgan(logFormat, {
-    skip: (req, res) => req.path === '/api/health',
-    stream: {
-        write: (message) => {
-            Logger.info(message.trim(), { component: 'HTTP' });
-        }
-    }
-}));
-
 // =====================
-// ENHANCED CONFIGURATION
+// DATABASE CONFIG
 // =====================
 
-const config = {
-    mongodb: {
-        uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/tradestation',
-        options: {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            maxPoolSize: 20,
-            serverSelectionTimeoutMS: 10000,
-            socketTimeoutMS: 45000,
-            bufferMaxEntries: 0,
-            retryWrites: true,
-            w: 'majority'
-        }
-    },
-    jwt: {
-        secret: process.env.JWT_SECRET || 'your-super-secure-jwt-secret-key-2024',
-        expiresIn: process.env.JWT_EXPIRES_IN || '7d'
-    },
-    email: {
-        service: process.env.EMAIL_SERVICE || 'gmail',
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-        from: process.env.EMAIL_FROM || 'noreply@tradestation.com'
-    },
-    app: {
-        name: 'TradeStation',
-        version: '3.0.0-premium',
-        url: process.env.APP_URL || 'http://localhost:3000',
-        supportEmail: process.env.SUPPORT_EMAIL || 'support@tradestation.com'
-    },
-    security: {
-        bcryptRounds: 12,
-        maxLoginAttempts: 5,
-        lockoutTime: 30 * 60 * 1000, // 30 minutes
-        sessionTimeout: 7 * 24 * 60 * 60 * 1000 // 7 days
-    },
-    features: {
-        emailNotifications: process.env.ENABLE_EMAIL_NOTIFICATIONS === 'true',
-        fileUpload: process.env.ENABLE_FILE_UPLOAD !== 'false',
-        backup: process.env.ENABLE_BACKUP !== 'false',
-        analytics: process.env.ENABLE_ANALYTICS !== 'false'
-    }
-};
+const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rizalitam10:Yusrizal1993@cluster0.s0e5g5h.mongodb.net/kontrakdb?retryWrites=true&w=majority&appName=Cluster0';
+const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secret_key_2024_secure';
 
 // =====================
-// ENHANCED LOGGER
-// =====================
-
-class Logger {
-    static levels = {
-        ERROR: 0,
-        WARN: 1,
-        INFO: 2,
-        DEBUG: 3
-    };
-    
-    static currentLevel = process.env.LOG_LEVEL 
-        ? this.levels[process.env.LOG_LEVEL.toUpperCase()] 
-        : this.levels.INFO;
-    
-    static log(level, message, meta = {}) {
-        if (this.levels[level] > this.currentLevel) return;
-        
-        const timestamp = new Date().toISOString();
-        const logEntry = {
-            timestamp,
-            level,
-            message,
-            ...meta
-        };
-        
-        const output = process.env.NODE_ENV === 'production' 
-            ? JSON.stringify(logEntry)
-            : `[${timestamp}] ${level}: ${message} ${Object.keys(meta).length ? JSON.stringify(meta) : ''}`;
-        
-        console.log(output);
-        
-        // In production, you might want to send logs to external service
-        if (process.env.NODE_ENV === 'production' && level === 'ERROR') {
-            this.sendToErrorTracking(logEntry);
-        }
-    }
-    
-    static error(message, meta = {}) { this.log('ERROR', message, meta); }
-    static warn(message, meta = {}) { this.log('WARN', message, meta); }
-    static info(message, meta = {}) { this.log('INFO', message, meta); }
-    static debug(message, meta = {}) { this.log('DEBUG', message, meta); }
-    
-    static async sendToErrorTracking(logEntry) {
-        // Implement integration with services like Sentry, LogRocket, etc.
-        // For now, just save to file
-        try {
-            const errorLogPath = path.join(__dirname, 'logs', 'errors.log');
-            const logDir = path.dirname(errorLogPath);
-            
-            if (!fsSync.existsSync(logDir)) {
-                await fs.mkdir(logDir, { recursive: true });
-            }
-            
-            await fs.appendFile(errorLogPath, JSON.stringify(logEntry) + '\n');
-        } catch (error) {
-            console.error('Failed to write error log:', error);
-        }
-    }
-}
-
-// =====================
-// SHARED CONSTANTS
-// =====================
-
-const CONTRACT_STATUS = {
-    DRAFT: 'draft',
-    SENT: 'sent',
-    VIEWED: 'viewed',
-    SIGNED: 'signed',
-    COMPLETED: 'completed',
-    EXPIRED: 'expired',
-    CANCELLED: 'cancelled'
-};
-
-const STATUS_STYLES = {
-    draft: { color: 'bg-gray-100 text-gray-800', text: 'Draft' },
-    sent: { color: 'bg-blue-100 text-blue-800', text: 'Terkirim' },
-    viewed: { color: 'bg-yellow-100 text-yellow-800', text: 'Dilihat' },
-    signed: { color: 'bg-green-100 text-green-800', text: 'Ditandatangani' },
-    completed: { color: 'bg-purple-100 text-purple-800', text: 'Selesai' },
-    expired: { color: 'bg-red-100 text-red-800', text: 'Kedaluwarsa' },
-    cancelled: { color: 'bg-red-100 text-red-800', text: 'Dibatalkan' }
-};
-
-const DEFAULT_USERS = {
-    ADMIN: {
-        email: 'admin@tradestation.com',
-        password: 'admin123',
-        name: 'TradeStation Administrator'
-    },
-    USER: {
-        email: 'hermanzal@trader.com',
-        password: 'trader123',
-        name: 'Herman Zaldivar'
-    }
-};
-
-// =====================
-// ENHANCED DATABASE SCHEMAS
+// DATABASE SCHEMAS
 // =====================
 
 const userSchema = new mongoose.Schema({
-    name: { type: String, required: true, trim: true, maxlength: 100 },
+    name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     username: { type: String, unique: true, sparse: true, trim: true },
     password: { type: String, required: true, minlength: 6 },
@@ -275,75 +74,32 @@ const userSchema = new mongoose.Schema({
     balance: { type: Number, default: 0, min: 0 },
     is_active: { type: Boolean, default: true },
     last_login: { type: Date },
-    login_attempts: { type: Number, default: 0 },
-    locked_until: { type: Date },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    profile_image: { type: String },
-    email_verified: { type: Boolean, default: false },
-    email_verification_token: { type: String },
-    password_reset_token: { type: String },
-    password_reset_expires: { type: Date },
-    preferences: {
-        language: { type: String, default: 'id' },
-        notifications: { type: Boolean, default: true },
-        theme: { type: String, default: 'light' },
-        timezone: { type: String, default: 'Asia/Jakarta' }
-    },
-    security: {
-        two_factor_enabled: { type: Boolean, default: false },
-        two_factor_secret: { type: String },
-        last_password_change: { type: Date, default: Date.now },
-        password_history: [{ password: String, changed_at: Date }]
-    }
-}, { 
-    timestamps: true,
-    toJSON: { virtuals: true, transform: (doc, ret) => { delete ret.password; return ret; } },
-    toObject: { virtuals: true }
-});
-
-// Indexes for performance
-userSchema.index({ email: 1 });
-userSchema.index({ username: 1 });
-userSchema.index({ is_active: 1 });
-userSchema.index({ created_at: -1 });
+    profile_image: { type: String }
+}, { timestamps: true });
 
 const templateSchema = new mongoose.Schema({
-    name: { type: String, required: true, trim: true, maxlength: 200 },
+    name: { type: String, required: true, trim: true },
     category: { type: String, default: 'general', trim: true },
     content: { type: String, required: true },
     variables: [{ type: String, trim: true }],
     is_active: { type: Boolean, default: true },
     created_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    description: { type: String, trim: true, maxlength: 500 },
-    version: { type: Number, default: 1 },
-    usage_count: { type: Number, default: 0 },
-    tags: [{ type: String, trim: true }],
-    approval_required: { type: Boolean, default: false },
-    approved_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    approved_at: { type: Date }
-}, { 
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
-
-templateSchema.index({ name: 1 });
-templateSchema.index({ category: 1 });
-templateSchema.index({ is_active: 1 });
-templateSchema.index({ usage_count: -1 });
+    description: { type: String, trim: true },
+    version: { type: Number, default: 1 }
+}, { timestamps: true });
 
 const contractSchema = new mongoose.Schema({
-    title: { type: String, required: true, trim: true, maxlength: 200 },
+    title: { type: String, required: true, trim: true },
     number: { type: String, required: true, unique: true, trim: true },
     user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     template_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Template' },
     content: { type: String },
     amount: { type: Number, default: 0, min: 0 },
-    currency: { type: String, default: 'IDR' },
     status: { 
         type: String, 
         default: 'draft',
-        enum: Object.values(CONTRACT_STATUS)
+        enum: ['draft', 'sent', 'viewed', 'signed', 'completed', 'expired', 'cancelled']
     },
     variables: { type: Object, default: {} },
     signature_data: { type: String },
@@ -357,953 +113,24 @@ const contractSchema = new mongoose.Schema({
     viewed_at: { type: Date },
     reminder_sent: { type: Number, default: 0 },
     ip_signed: { type: String },
-    user_agent_signed: { type: String },
-    priority: { type: String, default: 'normal', enum: ['low', 'normal', 'high', 'urgent'] },
-    attachments: [{
-        filename: String,
-        original_name: String,
-        path: String,
-        size: Number,
-        mimetype: String,
-        uploaded_at: { type: Date, default: Date.now }
-    }],
-    metadata: {
-        pdf_generated: { type: Boolean, default: false },
-        pdf_size: { type: Number },
-        generation_time: { type: Number },
-        download_count: { type: Number, default: 0 },
-        last_accessed: { type: Date },
-        access_count: { type: Number, default: 0 }
-    },
-    compliance: {
-        legal_reviewed: { type: Boolean, default: false },
-        reviewed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        reviewed_at: { type: Date },
-        compliance_notes: { type: String }
-    }
-}, { 
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true }
-});
+    user_agent_signed: { type: String }
+}, { timestamps: true });
 
-// Indexes for performance
-contractSchema.index({ number: 1 });
-contractSchema.index({ user_id: 1 });
-contractSchema.index({ status: 1 });
-contractSchema.index({ created_at: -1 });
-contractSchema.index({ expiry_date: 1 });
-contractSchema.index({ access_token: 1 });
-
-const auditLogSchema = new mongoose.Schema({
-    entity_type: { type: String, required: true }, // 'contract', 'user', 'template'
-    entity_id: { type: mongoose.Schema.Types.ObjectId, required: true },
+const contractHistorySchema = new mongoose.Schema({
+    contract_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Contract', required: true },
     action: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     performed_by: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     ip_address: { type: String },
     user_agent: { type: String },
-    metadata: { type: Object, default: {} },
-    severity: { type: String, default: 'info', enum: ['info', 'warning', 'error', 'critical'] },
-    changes: {
-        before: { type: Object },
-        after: { type: Object }
-    }
+    metadata: { type: Object, default: {} }
 }, { timestamps: true });
-
-auditLogSchema.index({ entity_type: 1, entity_id: 1 });
-auditLogSchema.index({ performed_by: 1 });
-auditLogSchema.index({ created_at: -1 });
 
 // Create models
 const User = mongoose.model('User', userSchema);
 const Template = mongoose.model('Template', templateSchema);
 const Contract = mongoose.model('Contract', contractSchema);
-const AuditLog = mongoose.model('AuditLog', auditLogSchema);
-
-// =====================
-// EMAIL SERVICE
-// =====================
-
-class EmailService {
-    constructor() {
-        if (!config.features.emailNotifications || !config.email.user) {
-            Logger.warn('Email service disabled - missing configuration');
-            this.enabled = false;
-            return;
-        }
-        
-        this.transporter = nodemailer.createTransporter({
-            service: config.email.service,
-            auth: {
-                user: config.email.user,
-                pass: config.email.pass
-            },
-            pool: true,
-            maxConnections: 5,
-            maxMessages: 100
-        });
-        
-        this.enabled = true;
-        Logger.info('Email service initialized');
-    }
-    
-    async sendContractNotification(user, contract, type = 'new') {
-        if (!this.enabled) return false;
-        
-        try {
-            const templates = {
-                new: {
-                    subject: `Kontrak Baru: ${contract.title}`,
-                    template: this.getNewContractTemplate(user, contract)
-                },
-                reminder: {
-                    subject: `Reminder: Kontrak Menunggu Tanda Tangan - ${contract.title}`,
-                    template: this.getReminderTemplate(user, contract)
-                },
-                signed: {
-                    subject: `Kontrak Ditandatangani: ${contract.title}`,
-                    template: this.getSignedTemplate(user, contract)
-                }
-            };
-            
-            const emailData = templates[type];
-            if (!emailData) {
-                throw new Error(`Unknown email template type: ${type}`);
-            }
-            
-            const mailOptions = {
-                from: config.email.from,
-                to: user.email,
-                subject: emailData.subject,
-                html: emailData.template,
-                text: this.htmlToText(emailData.template)
-            };
-            
-            const result = await this.transporter.sendMail(mailOptions);
-            Logger.info('Email sent successfully', { 
-                to: user.email, 
-                type, 
-                contractId: contract._id,
-                messageId: result.messageId 
-            });
-            
-            return true;
-        } catch (error) {
-            Logger.error('Failed to send email', { 
-                error: error.message, 
-                to: user.email, 
-                type,
-                contractId: contract._id 
-            });
-            return false;
-        }
-    }
-    
-    getNewContractTemplate(user, contract) {
-        return `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: linear-gradient(135deg, #0ea5e9, #0284c7); color: white; padding: 30px; text-align: center; border-radius: 10px; }
-                    .content { background: #f8fafc; padding: 30px; border-radius: 10px; margin: 20px 0; }
-                    .button { display: inline-block; background: #0ea5e9; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; }
-                    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
-                    .info-box { background: white; padding: 20px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #0ea5e9; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>🚀 TradeStation</h1>
-                        <p>Sistem Kontrak Digital Profesional</p>
-                    </div>
-                    
-                    <div class="content">
-                        <h2>Kontrak Baru Menunggu Tanda Tangan</h2>
-                        <p>Halo <strong>${user.name}</strong>,</p>
-                        <p>Anda memiliki kontrak baru yang perlu ditandatangani. Silakan tinjau detail kontrak di bawah ini:</p>
-                        
-                        <div class="info-box">
-                            <h3>Detail Kontrak:</h3>
-                            <ul>
-                                <li><strong>Nomor Kontrak:</strong> ${contract.number}</li>
-                                <li><strong>Judul:</strong> ${contract.title}</li>
-                                <li><strong>Nilai:</strong> ${this.formatCurrency(contract.amount)}</li>
-                                <li><strong>Status:</strong> Menunggu Tanda Tangan</li>
-                                <li><strong>Tanggal Dibuat:</strong> ${new Date(contract.createdAt).toLocaleDateString('id-ID')}</li>
-                            </ul>
-                        </div>
-                        
-                        <p style="text-align: center; margin: 30px 0;">
-                            <a href="${config.app.url}/?token=${contract.access_token}" class="button">
-                                📋 Lihat & Tanda Tangani Kontrak
-                            </a>
-                        </p>
-                        
-                        <div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                            <p><strong>⚠️ Penting:</strong> Link ini bersifat rahasia dan hanya untuk Anda. Jangan bagikan link ini kepada orang lain.</p>
-                        </div>
-                    </div>
-                    
-                    <div class="footer">
-                        <p>Email ini dikirim secara otomatis oleh sistem TradeStation.</p>
-                        <p>Jika Anda memiliki pertanyaan, hubungi kami di <a href="mailto:${config.app.supportEmail}">${config.app.supportEmail}</a></p>
-                        <p>© ${new Date().getFullYear()} TradeStation. All rights reserved.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
-    }
-    
-    getReminderTemplate(user, contract) {
-        const daysLeft = contract.expiry_date 
-            ? Math.ceil((new Date(contract.expiry_date) - new Date()) / (1000 * 60 * 60 * 24))
-            : null;
-            
-        return `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; padding: 30px; text-align: center; border-radius: 10px; }
-                    .content { background: #f8fafc; padding: 30px; border-radius: 10px; margin: 20px 0; }
-                    .button { display: inline-block; background: #f59e0b; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; font-weight: bold; }
-                    .urgent { background: #fef2f2; border: 2px solid #ef4444; padding: 20px; border-radius: 8px; margin: 20px 0; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>⏰ Reminder TradeStation</h1>
-                        <p>Kontrak Menunggu Tanda Tangan</p>
-                    </div>
-                    
-                    <div class="content">
-                        <h2>Kontrak Belum Ditandatangani</h2>
-                        <p>Halo <strong>${user.name}</strong>,</p>
-                        <p>Ini adalah pengingat bahwa Anda memiliki kontrak yang belum ditandatangani:</p>
-                        
-                        <div style="background: white; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                            <h3>Detail Kontrak:</h3>
-                            <ul>
-                                <li><strong>Nomor:</strong> ${contract.number}</li>
-                                <li><strong>Judul:</strong> ${contract.title}</li>
-                                <li><strong>Nilai:</strong> ${this.formatCurrency(contract.amount)}</li>
-                                ${daysLeft ? `<li><strong>Sisa Waktu:</strong> ${daysLeft} hari</li>` : ''}
-                            </ul>
-                        </div>
-                        
-                        ${daysLeft && daysLeft <= 3 ? `
-                        <div class="urgent">
-                            <h3>🚨 URGENT</h3>
-                            <p>Kontrak ini akan kedaluwarsa dalam ${daysLeft} hari. Segera tandatangani untuk menghindari pembatalan otomatis.</p>
-                        </div>
-                        ` : ''}
-                        
-                        <p style="text-align: center; margin: 30px 0;">
-                            <a href="${config.app.url}/?token=${contract.access_token}" class="button">
-                                ✍️ Tanda Tangani Sekarang
-                            </a>
-                        </p>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
-    }
-    
-    getSignedTemplate(user, contract) {
-        return `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <style>
-                    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-                    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-                    .header { background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 30px; text-align: center; border-radius: 10px; }
-                    .content { background: #f8fafc; padding: 30px; border-radius: 10px; margin: 20px 0; }
-                    .success { background: #f0fdf4; border: 2px solid #10b981; padding: 20px; border-radius: 8px; text-align: center; }
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>✅ Kontrak Ditandatangani</h1>
-                        <p>TradeStation Digital Contract</p>
-                    </div>
-                    
-                    <div class="content">
-                        <div class="success">
-                            <h2>🎉 Selamat!</h2>
-                            <p>Kontrak <strong>${contract.title}</strong> telah berhasil ditandatangani.</p>
-                        </div>
-                        
-                        <h3>Detail Kontrak:</h3>
-                        <ul>
-                            <li><strong>Nomor:</strong> ${contract.number}</li>
-                            <li><strong>Ditandatangani pada:</strong> ${new Date(contract.signed_at).toLocaleString('id-ID')}</li>
-                            <li><strong>Status:</strong> Aktif</li>
-                        </ul>
-                        
-                        <p>Salinan digital kontrak akan tersedia untuk diunduh melalui sistem TradeStation.</p>
-                    </div>
-                </div>
-            </body>
-            </html>
-        `;
-    }
-    
-    formatCurrency(amount) {
-        try {
-            return new Intl.NumberFormat('id-ID', {
-                style: 'currency',
-                currency: 'IDR',
-                minimumFractionDigits: 0
-            }).format(amount || 0);
-        } catch (error) {
-            return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
-        }
-    }
-    
-    htmlToText(html) {
-        return html
-            .replace(/<[^>]*>/g, '')
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .trim();
-    }
-}
-
-// =====================
-// FILE UPLOAD CONFIGURATION
-// =====================
-
-const uploadStorage = multer.diskStorage({
-    destination: async (req, file, cb) => {
-        const uploadPath = path.join(__dirname, 'uploads', new Date().getFullYear().toString(), 
-                                    (new Date().getMonth() + 1).toString().padStart(2, '0'));
-        try {
-            await fs.mkdir(uploadPath, { recursive: true });
-            cb(null, uploadPath);
-        } catch (error) {
-            cb(error);
-        }
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const extension = path.extname(file.originalname);
-        const safeFilename = file.originalname
-            .replace(/[^a-zA-Z0-9.-]/g, '_')
-            .substring(0, 50);
-        cb(null, `${uniqueSuffix}-${safeFilename}${extension}`);
-    }
-});
-
-const upload = multer({
-    storage: uploadStorage,
-    limits: { 
-        fileSize: 10 * 1024 * 1024, // 10MB
-        files: 5 // Maximum 5 files
-    },
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = [
-            'image/jpeg', 'image/png', 'image/gif',
-            'application/pdf',
-            'application/msword',
-            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            'text/plain'
-        ];
-        
-        if (allowedTypes.includes(file.mimetype)) {
-            cb(null, true);
-        } else {
-            cb(new Error(`Tipe file tidak diizinkan: ${file.mimetype}`));
-        }
-    }
-});
-
-// =====================
-// BACKUP SERVICE
-// =====================
-
-class BackupService {
-    static async createBackup() {
-        if (!config.features.backup) {
-            Logger.warn('Backup service disabled');
-            return false;
-        }
-        
-        try {
-            Logger.info('Starting database backup...');
-            
-            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-            const backupDir = path.join(__dirname, 'backups');
-            const backupPath = path.join(backupDir, `backup-${timestamp}.json`);
-            
-            // Ensure backup directory exists
-            await fs.mkdir(backupDir, { recursive: true });
-            
-            // Fetch all data
-            const [users, contracts, templates, auditLogs] = await Promise.all([
-                User.find({}).lean().exec(),
-                Contract.find({}).lean().exec(),
-                Template.find({}).lean().exec(),
-                AuditLog.find({}).sort({ createdAt: -1 }).limit(10000).lean().exec()
-            ]);
-            
-            const backupData = {
-                timestamp: new Date().toISOString(),
-                version: config.app.version,
-                statistics: {
-                    users: users.length,
-                    contracts: contracts.length,
-                    templates: templates.length,
-                    auditLogs: auditLogs.length
-                },
-                data: {
-                    users: users.map(user => {
-                        delete user.password;
-                        delete user.password_reset_token;
-                        return user;
-                    }),
-                    contracts,
-                    templates,
-                    auditLogs
-                }
-            };
-            
-            // Write backup file
-            await fs.writeFile(backupPath, JSON.stringify(backupData, null, 2));
-            
-            const stats = await fs.stat(backupPath);
-            Logger.info('Backup created successfully', {
-                path: backupPath,
-                size: Math.round(stats.size / 1024 / 1024 * 100) / 100 + ' MB',
-                records: backupData.statistics
-            });
-            
-            // Clean old backups
-            await this.cleanOldBackups();
-            
-            return backupPath;
-        } catch (error) {
-            Logger.error('Backup failed', { error: error.message });
-            return false;
-        }
-    }
-    
-    static async cleanOldBackups() {
-        try {
-            const backupDir = path.join(__dirname, 'backups');
-            const files = await fs.readdir(backupDir);
-            const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-            
-            for (const file of files) {
-                if (file.startsWith('backup-') && file.endsWith('.json')) {
-                    const filePath = path.join(backupDir, file);
-                    const stats = await fs.stat(filePath);
-                    
-                    if (stats.mtime.getTime() < thirtyDaysAgo) {
-                        await fs.unlink(filePath);
-                        Logger.info('Deleted old backup', { file });
-                    }
-                }
-            }
-        } catch (error) {
-            Logger.error('Failed to clean old backups', { error: error.message });
-        }
-    }
-    
-    static scheduleBackups() {
-        if (!config.features.backup) return;
-        
-        // Daily backup at 2 AM
-        cron.schedule('0 2 * * *', async () => {
-            Logger.info('Starting scheduled backup...');
-            await this.createBackup();
-        });
-        
-        // Weekly cleanup on Sunday at 3 AM
-        cron.schedule('0 3 * * 0', async () => {
-            Logger.info('Starting scheduled cleanup...');
-            await this.cleanOldBackups();
-        });
-        
-        Logger.info('Backup scheduler initialized');
-    }
-}
-
-// =====================
-// ENHANCED UTILITY FUNCTIONS
-// =====================
-
-function generateAccessToken() {
-    return crypto.randomBytes(32).toString('hex');
-}
-
-function generateContractNumber() {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
-    return `TSC${year}${month}${day}${hours}${minutes}${random}`;
-}
-
-function formatCurrency(amount) {
-    try {
-        if (typeof amount !== 'number' || isNaN(amount)) {
-            return 'Rp 0';
-        }
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0,
-            maximumFractionDigits: 0
-        }).format(amount);
-    } catch (error) {
-        Logger.warn('Error formatting currency', { error: error.message, amount });
-        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
-    }
-}
-
-// Enhanced audit logging
-async function logAuditActivity(entityType, entityId, action, description, userId = null, req = null, changes = {}) {
-    try {
-        await AuditLog.create({
-            entity_type: entityType,
-            entity_id: entityId,
-            action,
-            description,
-            performed_by: userId,
-            ip_address: req ? req.ip : null,
-            user_agent: req ? req.get('User-Agent') : null,
-            changes,
-            metadata: {
-                timestamp: new Date(),
-                source: 'advanced_system',
-                version: config.app.version,
-                session_id: req ? req.sessionID : null
-            }
-        });
-    } catch (error) {
-        Logger.error('Failed to log audit activity', { 
-            error: error.message, 
-            entityType, 
-            entityId, 
-            action 
-        });
-    }
-}
-
-// Data conversion helpers
-function convertUserToCamelCase(user) {
-    if (!user) return null;
-    
-    const userObj = user.toObject ? user.toObject() : user;
-    
-    return {
-        ...userObj,
-        tradingAccount: userObj.trading_account,
-        isActive: userObj.is_active,
-        lastLogin: userObj.last_login,
-        loginAttempts: userObj.login_attempts,
-        lockedUntil: userObj.locked_until,
-        createdBy: userObj.created_by,
-        profileImage: userObj.profile_image,
-        emailVerified: userObj.email_verified,
-        emailVerificationToken: userObj.email_verification_token,
-        passwordResetToken: userObj.password_reset_token,
-        passwordResetExpires: userObj.password_reset_expires
-    };
-}
-
-function convertContractToCamelCase(contract) {
-    if (!contract) return null;
-    
-    const contractObj = contract.toObject ? contract.toObject() : contract;
-    
-    return {
-        ...contractObj,
-        userId: contractObj.user_id,
-        templateId: contractObj.template_id,
-        signatureData: contractObj.signature_data,
-        signedAt: contractObj.signed_at,
-        expiryDate: contractObj.expiry_date,
-        adminNotes: contractObj.admin_notes,
-        accessToken: contractObj.access_token,
-        pdfFilePath: contractObj.pdf_file_path,
-        createdBy: contractObj.created_by,
-        sentAt: contractObj.sent_at,
-        viewedAt: contractObj.viewed_at,
-        reminderSent: contractObj.reminder_sent,
-        ipSigned: contractObj.ip_signed,
-        userAgentSigned: contractObj.user_agent_signed
-    };
-}
-
-function convertTemplateToCamelCase(template) {
-    if (!template) return null;
-    
-    const templateObj = template.toObject ? template.toObject() : template;
-    
-    return {
-        ...templateObj,
-        isActive: templateObj.is_active,
-        createdBy: templateObj.created_by,
-        usageCount: templateObj.usage_count,
-        approvalRequired: templateObj.approval_required,
-        approvedBy: templateObj.approved_by,
-        approvedAt: templateObj.approved_at
-    };
-}
-
-// =====================
-// ENHANCED PDF GENERATION
-// =====================
-
-async function generateContractPDF(contract, user, signatureData) {
-    return new Promise((resolve, reject) => {
-        try {
-            Logger.info('Starting enhanced PDF generation', { 
-                contractId: contract._id,
-                contractNumber: contract.number 
-            });
-            
-            const startTime = Date.now();
-            
-            const doc = new PDFDocument({ 
-                margin: 50,
-                size: 'A4',
-                bufferPages: true,
-                autoFirstPage: true,
-                info: {
-                    Title: `Kontrak ${contract.number}`,
-                    Author: 'TradeStation Digital Platform',
-                    Subject: contract.title || 'Perjanjian Konsultasi Investasi',
-                    Creator: 'TradeStation Advanced Professional System v3.0',
-                    Keywords: 'Kontrak,Investasi,TradeStation,Digital,Professional,Advanced',
-                    Producer: 'TradeStation PDF Engine v3.0'
-                }
-            });
-            
-            const buffers = [];
-            
-            doc.on('data', (chunk) => buffers.push(chunk));
-            doc.on('end', () => {
-                try {
-                    const pdfData = Buffer.concat(buffers);
-                    const generationTime = Date.now() - startTime;
-                    
-                    Logger.info('PDF generated successfully', {
-                        contractId: contract._id,
-                        size: pdfData.length,
-                        generationTime
-                    });
-                    
-                    resolve(pdfData);
-                } catch (error) {
-                    reject(error);
-                }
-            });
-            doc.on('error', reject);
-
-            // Enhanced PDF content generation
-            generatePDFContent(doc, contract, user, signatureData);
-            
-        } catch (error) {
-            Logger.error('PDF generation failed', { 
-                error: error.message,
-                contractId: contract._id 
-            });
-            reject(new Error(`PDF generation failed: ${error.message}`));
-        }
-    });
-}
-
-function generatePDFContent(doc, contract, user, signatureData) {
-    // Professional header with company branding
-    const headerGradient = doc.linearGradient(50, 30, 550, 130);
-    headerGradient.stop(0, '#ffffff')
-                 .stop(0.2, '#f8fafc')
-                 .stop(1, '#e2e8f0');
-    
-    doc.rect(50, 30, 500, 130)
-       .fill(headerGradient)
-       .stroke();
-    
-    // TradeStation logo and branding
-    const logoPath = path.join(__dirname, 'assets', 'tradestation-logo.png');
-    
-    if (fsSync.existsSync(logoPath)) {
-        try {
-            doc.image(logoPath, 70, 55, { width: 180, height: 54 });
-        } catch (logoError) {
-            createTextLogo(doc);
-        }
-    } else {
-        createTextLogo(doc);
-    }
-    
-    function createTextLogo(doc) {
-        doc.fontSize(24)
-           .font('Helvetica-Bold')
-           .fillColor('#0ea5e9')
-           .text('TradeStation', 70, 70);
-        
-        doc.fontSize(10)
-           .fillColor('#64748b')
-           .text('Digital Contract Platform - Premium v3.0', 70, 100);
-    }
-    
-    // Contract metadata box
-    doc.rect(350, 45, 180, 100)
-       .fillColor('#f8fafc')
-       .fill()
-       .strokeColor('#e2e8f0')
-       .stroke();
-    
-    doc.fontSize(8)
-       .fillColor('#374151')
-       .text('NOMOR KONTRAK', 360, 55)
-       .fontSize(12)
-       .font('Helvetica-Bold')
-       .text(contract.number, 360, 70)
-       .fontSize(8)
-       .font('Helvetica')
-       .text('TANGGAL', 360, 90)
-       .text(new Date(contract.createdAt).toLocaleDateString('id-ID'), 360, 105)
-       .text('STATUS', 360, 120)
-       .fillColor('#10b981')
-       .text('DITANDATANGANI', 360, 135);
-    
-    // Contract content
-    doc.y = 180;
-    
-    let content = contract.content || '';
-    
-    // Enhanced variable replacement
-    const replacements = {
-        '{{USER_NAME}}': user.name || '[Nama User]',
-        '{{USER_EMAIL}}': user.email || '[Email User]',
-        '{{USER_PHONE}}': user.phone || '[Telepon User]',
-        '{{TRADING_ID}}': user.trading_account || '[Trading ID]',
-        '{{CONTRACT_NUMBER}}': contract.number || '[Nomor Kontrak]',
-        '{{CONTRACT_DATE}}': contract.createdAt ? 
-            new Date(contract.createdAt).toLocaleDateString('id-ID', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric'
-            }) : '[Tanggal Kontrak]',
-        '{{AMOUNT}}': contract.amount ? 
-            formatCurrency(contract.amount) : '[Jumlah]',
-        '{{SIGNED_DATE}}': contract.signed_at ? 
-            new Date(contract.signed_at).toLocaleString('id-ID', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                timeZoneName: 'short'
-            }) : '[Tanggal TTD]'
-    };
-
-    // Replace all variables
-    Object.keys(replacements).forEach(key => {
-        const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
-        content = content.replace(regex, replacements[key]);
-    });
-
-    // Replace custom variables
-    if (contract.variables && typeof contract.variables === 'object') {
-        Object.keys(contract.variables).forEach(key => {
-            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-            const value = contract.variables[key] || `[${key} - Tidak Diisi]`;
-            content = content.replace(regex, value);
-        });
-    }
-    
-    // Add content with better formatting
-    doc.fontSize(11)
-       .font('Helvetica')
-       .fillColor('#374151')
-       .text(content, {
-           align: 'justify',
-           lineGap: 4,
-           width: 500
-       });
-    
-    // Digital signature section
-    if (signatureData && contract.signed_at) {
-        doc.addPage();
-        
-        // Signature section header
-        doc.fontSize(16)
-           .font('Helvetica-Bold')
-           .fillColor('#0ea5e9')
-           .text('TANDA TANGAN DIGITAL', 50, 50);
-        
-        // Signature verification box
-        doc.rect(50, 80, 500, 150)
-           .fillColor('#f0fdf4')
-           .fill()
-           .strokeColor('#10b981')
-           .lineWidth(2)
-           .stroke();
-        
-        doc.fontSize(12)
-           .fillColor('#059669')
-           .font('Helvetica-Bold')
-           .text('✓ KONTRAK TELAH DITANDATANGANI SECARA DIGITAL', 70, 100);
-        
-        doc.fontSize(10)
-           .font('Helvetica')
-           .fillColor('#374151')
-           .text(`Ditandatangani oleh: ${user.name}`, 70, 130)
-           .text(`Email: ${user.email}`, 70, 150)
-           .text(`Tanggal & Waktu: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, 70, 170)
-           .text(`IP Address: ${contract.ip_signed || 'N/A'}`, 70, 190)
-           .text(`Nomor Kontrak: ${contract.number}`, 70, 210);
-        
-        // Add signature image if available
-        if (signatureData) {
-            try {
-                const signatureBuffer = Buffer.from(signatureData.split(',')[1], 'base64');
-                doc.image(signatureBuffer, 350, 120, { width: 150, height: 75 });
-            } catch (error) {
-                Logger.warn('Failed to add signature image to PDF', { error: error.message });
-            }
-        }
-        
-        // Legal compliance notice
-        doc.fontSize(8)
-           .fillColor('#6b7280')
-           .text('Tanda tangan digital ini memiliki kekuatan hukum yang sama dengan tanda tangan basah', 70, 260)
-           .text('sesuai dengan UU ITE No. 11 Tahun 2008 tentang Informasi dan Transaksi Elektronik.', 70, 275);
-        
-        // QR Code for verification (placeholder)
-        doc.fontSize(8)
-           .text('Kode Verifikasi:', 70, 300)
-           .fontSize(10)
-           .font('Courier')
-           .text(crypto.createHash('sha256').update(contract._id + contract.signed_at).digest('hex').substring(0, 16), 70, 315);
-    }
-    
-    // Footer with security features
-    const pageCount = doc.bufferedPageRange().count;
-    for (let i = 0; i < pageCount; i++) {
-        doc.switchToPage(i);
-        
-        // Footer
-        doc.fontSize(8)
-           .fillColor('#9ca3af')
-           .text(`TradeStation Digital Contract System v3.0 - Halaman ${i + 1} dari ${pageCount}`, 50, 750)
-           .text(`Generated: ${new Date().toLocaleString('id-ID')} | Document ID: ${contract._id}`, 50, 765);
-    }
-    
-    doc.end();
-}
-
-// =====================
-// ENHANCED MIDDLEWARE
-// =====================
-
-const authenticateToken = async (req, res, next) => {
-    try {
-        const authHeader = req.headers['authorization'];
-        const token = authHeader && authHeader.split(' ')[1];
-
-        if (!token) {
-            return res.status(401).json({ error: 'Token akses diperlukan' });
-        }
-
-        const decoded = jwt.verify(token, config.jwt.secret);
-        const user = await User.findById(decoded.userId).where('is_active').equals(true);
-        
-        if (!user) {
-            return res.status(401).json({ error: 'Token tidak valid atau user tidak ditemukan' });
-        }
-
-        // Check for account lockout
-        if (user.locked_until && user.locked_until > new Date()) {
-            return res.status(423).json({ 
-                error: 'Akun terkunci sementara',
-                lockedUntil: user.locked_until
-            });
-        }
-
-        // Update last access
-        user.metadata = user.metadata || {};
-        user.metadata.last_accessed = new Date();
-        await user.save();
-
-        req.user = user;
-        next();
-    } catch (error) {
-        if (error.name === 'TokenExpiredError') {
-            return res.status(401).json({ error: 'Token sudah kedaluwarsa' });
-        } else if (error.name === 'JsonWebTokenError') {
-            return res.status(401).json({ error: 'Token tidak valid' });
-        }
-        
-        Logger.error('Authentication error', { error: error.message });
-        return res.status(500).json({ error: 'Kesalahan sistem autentikasi' });
-    }
-};
-
-const authenticateAdmin = async (req, res, next) => {
-    if (req.user.role !== 'admin') {
-        await logAuditActivity(
-            'user', 
-            req.user._id, 
-            'unauthorized_admin_access', 
-            `User tried to access admin endpoint: ${req.path}`,
-            req.user._id,
-            req
-        );
-        return res.status(403).json({ error: 'Akses admin diperlukan' });
-    }
-    next();
-};
-
-// Enhanced error handling middleware
-const errorHandler = (error, req, res, next) => {
-    Logger.error('Unhandled error', { 
-        error: error.message, 
-        stack: error.stack,
-        path: req.path,
-        method: req.method,
-        ip: req.ip,
-        userAgent: req.get('User-Agent')
-    });
-    
-    // Don't leak error details in production
-    const message = process.env.NODE_ENV === 'production' 
-        ? 'Terjadi kesalahan server internal'
-        : error.message;
-    
-    res.status(500).json({ 
-        error: message,
-        timestamp: new Date().toISOString(),
-        version: config.app.version
-    });
-};
+const ContractHistory = mongoose.model('ContractHistory', contractHistorySchema);
 
 // =====================
 // DATABASE CONNECTION
@@ -1311,127 +138,78 @@ const errorHandler = (error, req, res, next) => {
 
 async function connectDatabase() {
     try {
-        Logger.info('Connecting to MongoDB...', { uri: config.mongodb.uri.replace(/\/\/.*@/, '//***:***@') });
+        console.log('🔗 Menghubungkan ke MongoDB Atlas...');
         
-        await mongoose.connect(config.mongodb.uri, config.mongodb.options);
+        await mongoose.connect(MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            maxPoolSize: 10,
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+        });
         
-        Logger.info('MongoDB connected successfully');
-        
-        // Setup database indexes
-        await setupDatabaseIndexes();
-        
-        // Setup initial data
+        console.log('✅ MongoDB Atlas terhubung dengan sukses!');
         await setupInitialData();
         
-        // Setup email service
-        global.emailService = new EmailService();
-        
-        return true;
     } catch (error) {
-        Logger.error('MongoDB connection error', { error: error.message });
-        throw error;
-    }
-}
-
-async function setupDatabaseIndexes() {
-    try {
-        // Additional performance indexes
-        await User.collection.createIndex({ email: 1, is_active: 1 });
-        await Contract.collection.createIndex({ user_id: 1, status: 1 });
-        await Contract.collection.createIndex({ expiry_date: 1, status: 1 });
-        await AuditLog.collection.createIndex({ entity_type: 1, entity_id: 1, created_at: -1 });
-        
-        Logger.info('Database indexes created successfully');
-    } catch (error) {
-        Logger.warn('Failed to create some database indexes', { error: error.message });
+        console.error('❌ Error koneksi MongoDB:', error);
+        console.log('⚠️  Melanjutkan startup server...');
     }
 }
 
 async function setupInitialData() {
     try {
-        Logger.info('Setting up initial data...');
+        console.log('🚀 Menyiapkan data awal...');
         
         // Create admin user
-        const adminExists = await User.findOne({ email: DEFAULT_USERS.ADMIN.email });
+        const adminExists = await User.findOne({ email: 'admin@tradestation.com' });
         if (!adminExists) {
-            const hashedPassword = await bcrypt.hash(DEFAULT_USERS.ADMIN.password, config.security.bcryptRounds);
+            const hashedPassword = await bcrypt.hash('admin123', 12);
             await User.create({
-                name: DEFAULT_USERS.ADMIN.name,
-                email: DEFAULT_USERS.ADMIN.email,
+                name: 'Admin TradeStation',
+                email: 'admin@tradestation.com',
                 username: 'admin',
                 password: hashedPassword,
                 role: 'admin',
                 trading_account: 'ADM001',
                 phone: '+62812-3456-7890',
-                balance: 0,
-                email_verified: true
+                balance: 0
             });
-            Logger.info('Default admin user created');
+            console.log('✅ User admin default telah dibuat');
         }
         
         // Create sample user
-        const userExists = await User.findOne({ email: DEFAULT_USERS.USER.email });
+        const userExists = await User.findOne({ email: 'hermanzal@trader.com' });
         if (!userExists) {
-            const hashedPassword = await bcrypt.hash(DEFAULT_USERS.USER.password, config.security.bcryptRounds);
+            const hashedPassword = await bcrypt.hash('trader123', 12);
             await User.create({
-                name: DEFAULT_USERS.USER.name,
-                email: DEFAULT_USERS.USER.email,
+                name: 'Herman Zaldivar',
+                email: 'hermanzal@trader.com',
                 username: 'hermanzal',
                 password: hashedPassword,
                 role: 'user',
                 trading_account: 'TRD001',
                 phone: '+62812-8888-9999',
-                balance: 50000000,
-                email_verified: true
+                balance: 50000000
             });
-            Logger.info('Sample user created');
+            console.log('✅ User contoh telah dibuat');
         }
         
-        // Create enhanced default template
-        const templateExists = await Template.findOne({ 
-            name: 'Perjanjian Layanan Kerja Sama Konsultasi Investasi TradeStation' 
-        });
+        // Create default template
+        const templateExists = await Template.findOne({ name: 'Perjanjian Layanan Kerja Sama Konsultasi Investasi' });
         if (!templateExists) {
             const admin = await User.findOne({ role: 'admin' });
             if (admin) {
                 await Template.create({
-                    name: 'Perjanjian Layanan Kerja Sama Konsultasi Investasi TradeStation',
+                    name: 'Perjanjian Layanan Kerja Sama Konsultasi Investasi',
                     category: 'investment',
-                    description: 'Template lengkap untuk perjanjian konsultasi investasi dengan PT. Konsultasi Profesional Indonesia - Partner TradeStation',
-                    content: generateDefaultTemplateContent(),
-                    variables: [
-                        'USER_NAME', 'USER_EMAIL', 'USER_PHONE', 'USER_ADDRESS', 'TRADING_ID', 
-                        'CONTRACT_NUMBER', 'CONTRACT_DATE', 'AMOUNT', 'COMMISSION_PERCENTAGE', 
-                        'DURATION_DAYS', 'MIN_TRANSACTIONS', 'PAYMENT_METHOD', 'PAYMENT_SCHEDULE', 
-                        'PAYMENT_TERMS', 'SIGNED_DATE'
-                    ],
-                    created_by: admin._id,
-                    tags: ['investment', 'tradestation', 'consultation', 'professional'],
-                    approval_required: false,
-                    approved_by: admin._id,
-                    approved_at: new Date()
-                });
-                Logger.info('Enhanced default template created');
-            }
-        }
-        
-        Logger.info('Initial data setup completed');
-        
-    } catch (error) {
-        Logger.error('Error in initial data setup', { error: error.message });
-    }
-}
-
-function generateDefaultTemplateContent() {
-    return `# PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI
+                    description: 'Template lengkap untuk perjanjian konsultasi investasi dengan PT. Konsultasi Profesional Indonesia',
+                    content: `# PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI
 
 **Nomor Kontrak:** {{CONTRACT_NUMBER}}
 
 ## Pihak A:
-**Nama:** {{USER_NAME}}
-**Email:** {{USER_EMAIL}}
-**Telepon:** {{USER_PHONE}}
-**Trading ID:** {{TRADING_ID}}
+{{USER_NAME}}
 
 ## Pihak B: PT. Konsultasi Profesional Indonesia
 **Alamat:** Tower 2 Lantai 17 Jl. H. R. Rasuna Said Blok X-5 No.Kav. 2-3, RT.1/RW.2, Kuningan, Jakarta Selatan 12950
@@ -1446,9 +224,9 @@ function generateDefaultTemplateContent() {
 
 1.1. Biaya konsultasi layanan merujuk pada nilai profit dari investasi apapun oleh pelanggan. Anda dapat meminta Pihak B untuk melakukan analisis data, laporan, dll.
 
-1.2. Biaya transaksi merujuk pada biaya yang dibebankan oleh Pihak B kepada Pihak A. Biaya ini dihitung berdasarkan jumlah Profit dari transaksi Investasi sebesar {{COMMISSION_PERCENTAGE}}% hingga 50%.
+1.2. Biaya transaksi merujuk pada biaya yang dibebankan oleh Pihak B kepada Pihak A. Biaya ini dihitung berdasarkan jumlah Profit dari transaksi Investasi sebesar 30 % hingga 50 %.
 
-1.3. Nilai modal Investasi Pihak A sebesar **{{AMOUNT}}** dengan durasi kontrak kerja sama investasi selama **{{DURATION_DAYS}}** hari atau minimal **{{MIN_TRANSACTIONS}}** kali transaksi investasi.
+1.3. Nilai modal Investasi Pihak A sebesar {{AMOUNT}} dengan durasi kontrak kerja sama investasi selama {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
 
 ## Pasal 2: Konten Layanan dan Standar Tarif
 
@@ -1462,13 +240,73 @@ function generateDefaultTemplateContent() {
 
 2.5. Informasi yang disediakan oleh Pihak B harus dijaga kerahasiaannya oleh Pihak A dan tidak boleh disebarkan tanpa izin tertulis.
 
-## Pasal 3: Ketentuan Tanda Tangan Digital
+## Pasal 3: Metode Penyelesaian
 
-3.1. Kontrak ini menggunakan sistem tanda tangan digital yang sah secara hukum.
+3.1. Pihak A akan menyelesaikan pembayaran untuk layanan konsultasi / panduan transaksi investasi setelah Pihak A mendapatkan nilai Profit dari Transaksi investasi dan pembayaran komisi konsultasi berlaku selama {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
 
-3.2. Tanda tangan digital memiliki kekuatan hukum yang sama dengan tanda tangan basah sesuai UU ITE.
+3.2. Jika pembayaran tidak dilakukan tepat waktu, Pihak A akan dikenakan denda harian.
 
-3.3. Kedua belah pihak setuju bahwa kontrak digital ini mengikat secara hukum.
+3.3. Jika pembayaran tetap tidak dilakukan dalam 48 jam, maka Pihak B dapat menangguhkan layanan.
+
+3.4. Pihak A bertanggung jawab atas biaya tambahan akibat kegagalan pembayaran.
+
+3.5. Jika terjadi pembatalan, biaya layanan yang sudah dibayarkan tidak dapat dikembalikan.
+
+## Pasal 4: Hak dan Kewajiban Pihak A
+
+4.1. Pihak A berhak meminta, dan menerima data yang akurat untuk hasil profit 100 % oleh Pihak B. Jika Pihak A collapse / merugi Pihak B wajib melakukan ganti rugi dengan nilai yang sama kepada Pihak A.
+
+4.2. Pihak A berhak tidak menambah nominal modal selama kontrak perjanjian kerja sama investasi ini berlaku yaitu {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
+
+4.3. Pihak A berhak mendapatkan panduan investasi terbaik sebanyak 5 hingga 10 kali transaksi per harinya selama masa kontrak perjanjian kerja sama investasi ini berlaku.
+
+4.4. Pihak A wajib mengikuti panduan transaksi dengan benar oleh Pihak B. Jika melakukan transaksi investasi diluar panduan Pihak B seluruh resiko hasil transaksi tersebut bukan tanggung jawab Pihak B.
+
+4.5. Pihak A wajib bayarkan komisi konsultasi sebanyak 30 % dari nilai profit transaksi investasi dan dibayarkan setelah transaksi investasi selesai dan wajib Penarikan seluruh modal investasi dan hasil profit transaksi investasi setelah masa durasi kontrak kerja sama investasi selama {{DURATION_DAYS}} hari atau minimal {{MIN_TRANSACTIONS}} kali transaksi investasi.
+
+4.6. Pihak A menjamin bahwa dana yang digunakan berasal dari sumber yang sah dan dapat dipertanggung jawabkan.
+
+4.7. Pihak A tidak boleh menggunakan informasi layanan ini untuk tindakan yang melanggar hukum seperti pencucian uang, perjudian, penghindaran pajak, dll.
+
+4.8. Pihak A wajib melakukan / mengikuti panduan investasi sebanyak 3 kali transaksi perharinya sesuai jadwal investasi dari Pihak B.
+
+## Pasal 5: Hak dan Kewajiban Pihak B
+
+5.1. Pihak B harus menangani permintaan konsultasi dari Pihak A sesuai perjanjian.
+
+5.2. Pihak B bertanggung jawab memberikan informasi konsultasi investasi secara akurat dan menanggung resiko sebesar 100% pengembalian modal jika terjadi collapse / merugi kepada Pihak A.
+
+5.3. Dalam jam kerja normal, Pihak B akan merespons permintaan dari Pihak A untuk transaksi investasi diluar jadwal yang diberikan Pihak B.
+
+5.4. Pihak B berhak mendapatkan pembayaran komisi konsultasi dari pihak A sebesar 30 % dari nilai Profit transaksi investasi.
+
+5.5. Pihak B dapat menghentikan layanan jika Pihak A tidak membayar atau bertindak mencurigakan.
+
+5.6. Pihak B tidak dibenarkan meminta pembayaran diluar jumlah yang disepekati dalam isi perjanjian kontrak kerja sama investasi ini.
+
+5.7. Pihak B tidak bertanggung jawab atas risiko operasional dari keputusan investasi yang dilakukan Pihak A tanpa panduan atau diluar panduan pihak B.
+
+5.8. Pihak B dapat menolak transaksi yang melanggar hukum atau mencurigakan.
+
+5.9. Sengketa diselesaikan melalui negosiasi damai.
+
+5.10. Pihak B wajib berikan panduan dan jadwal transaksi investasi minimal 3 kali transaksi per harinya kepada pihak A.
+
+5.11. Pihak B berhak mengakhiri perjanjian jika Pihak A melakukan kecurangan pada akun investasi.
+
+5.12. Jika Pihak A melanggar hukum atau menyebabkan kerugian, Pihak B dapat menuntut ganti rugi dan menyelesaikan secara hukum yang berlaku di indonesia.
+
+5.13. Pihak B berhak tidak bertanggung jawab atas pembekuan seluruh aset / modal dan hasil profit investasi pihak A oleh Platform Tradestation, jika Pihak A melakukan penarikan berulang kali selama masa durasi kontrak kerja sama investasi ini berlangsung / belum selesai.
+
+## Pasal 6: Klausul Kerahasiaan
+
+6.1. Informasi yang diperoleh oleh kedua belah pihak selama masa kontrak kerja sama investasi ini harus dijaga kerahasiaannya dan tidak boleh disebarkan kepada pihak ketiga tanpa izin tertulis.
+
+6.2. Kerahasiaan ini meliputi hal - hal penting dan sensitif serta data diri dari kedua belah pihak.
+
+6.3. Semua informasi tetap milik pihak yang memberikannya dan tidak dapat digunakan tanpa izin oleh pihak manapun.
+
+6.4. Klausul ini tetap berlaku meskipun perjanjian berakhir.
 
 ---
 
@@ -1479,65 +317,433 @@ function generateDefaultTemplateContent() {
 Prof. Bima Agung Rachel                           ( {{USER_NAME}} )
 
 
-**Tanggal Penandatanganan:** {{SIGNED_DATE}}
+**Tanggal Penandatanganan:** {{SIGNED_DATE}}`,
+                    variables: [
+                        'USER_NAME', 'USER_EMAIL', 'USER_PHONE', 'USER_ADDRESS', 'TRADING_ID', 
+                        'CONTRACT_NUMBER', 'CONTRACT_DATE', 'AMOUNT', 'CONSULTATION_FEE', 
+                        'CONTRACT_PERIOD', 'DURATION_DAYS', 'MIN_TRANSACTIONS', 
+                        'PAYMENT_METHOD', 'PAYMENT_SCHEDULE', 'PAYMENT_TERMS', 'SIGNED_DATE'
+                    ],
+                    created_by: admin._id
+                });
+                console.log('✅ Template default telah dibuat');
+            }
+        }
+        
+        console.log('🎉 Setup data awal selesai!');
+        
+    } catch (error) {
+        console.error('❌ Error setup data awal:', error);
+    }
+}
 
----
+// =====================
+// UTILITY FUNCTIONS
+// =====================
 
-*Dokumen ini dibuat menggunakan TradeStation Digital Contract System v3.0*
-*© ${new Date().getFullYear()} TradeStation. All rights reserved.*`;
+function generateAccessToken() {
+    return crypto.randomBytes(32).toString('hex');
+}
+
+function generateContractNumber() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
+    return `TSC${year}${month}${day}${random}`;
+}
+
+function formatCurrency(amount) {
+    try {
+        if (typeof amount !== 'number' || isNaN(amount)) {
+            return 'Rp 0';
+        }
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(amount);
+    } catch (error) {
+        console.warn('⚠️ Error formatting currency:', error);
+        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
+    }
+}
+
+// =====================
+// MIDDLEWARE
+// =====================
+
+const authenticateToken = async (req, res, next) => {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token) {
+        return res.status(401).json({ error: 'Token akses diperlukan' });
+    }
+
+    try {
+        const decoded = jwt.verify(token, JWT_SECRET);
+        const user = await User.findById(decoded.userId).where('is_active').equals(true);
+        
+        if (!user) {
+            return res.status(401).json({ error: 'Token tidak valid atau user tidak ditemukan' });
+        }
+
+        req.user = user;
+        next();
+    } catch (error) {
+        console.error('Error verifikasi token:', error);
+        return res.status(403).json({ error: 'Token tidak valid atau sudah kedaluwarsa' });
+    }
+};
+
+const authenticateAdmin = async (req, res, next) => {
+    if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Akses admin diperlukan' });
+    }
+    next();
+};
+
+async function logContractActivity(contractId, action, description, userId = null, req = null) {
+    try {
+        await ContractHistory.create({
+            contract_id: contractId,
+            action,
+            description,
+            performed_by: userId,
+            ip_address: req ? req.ip : null,
+            user_agent: req ? req.get('User-Agent') : null,
+            metadata: {
+                timestamp: new Date(),
+                source: 'system'
+            }
+        });
+    } catch (error) {
+        console.error('Gagal mencatat aktivitas kontrak:', error);
+    }
+}
+
+// =====================
+// PDF GENERATION
+// =====================
+
+async function generateContractPDF(contract, user, signatureData) {
+    return new Promise((resolve, reject) => {
+        try {
+            console.log('🔄 Starting PDF generation for contract:', contract.number);
+            
+            if (!contract || !user) {
+                throw new Error('Contract atau user data tidak lengkap');
+            }
+
+            const doc = new PDFDocument({ 
+                margin: 50,
+                size: 'A4',
+                bufferPages: true,
+                autoFirstPage: true,
+                info: {
+                    Title: `Kontrak ${contract.number}`,
+                    Author: 'TradeStation Digital',
+                    Subject: contract.title || 'Kontrak Digital',
+                    Creator: 'TradeStation System'
+                }
+            });
+            
+            const buffers = [];
+            
+            doc.on('data', (chunk) => {
+                buffers.push(chunk);
+            });
+            
+            doc.on('end', () => {
+                try {
+                    const pdfData = Buffer.concat(buffers);
+                    console.log('✅ PDF generated successfully, size:', pdfData.length);
+                    resolve(pdfData);
+                } catch (error) {
+                    console.error('❌ Error combining PDF buffers:', error);
+                    reject(error);
+                }
+            });
+            
+            doc.on('error', (error) => {
+                console.error('❌ PDFDocument error:', error);
+                reject(error);
+            });
+
+            console.log('📝 Adding content to PDF...');
+
+            // HEADER
+            doc.fontSize(16)
+               .font('Helvetica-Bold')
+               .text('PT. KONSULTAN PROFESIONAL INDONESIA', { align: 'center' });
+            
+            doc.moveDown(0.5);
+            doc.fontSize(12)
+               .font('Helvetica')
+               .text('Partner Of', { align: 'center' });
+            
+            doc.moveDown(0.5);
+            doc.fontSize(20)
+               .font('Helvetica-Bold')
+               .fillColor('#0066CC')
+               .text('TradeStation', { align: 'center' });
+            
+            doc.fillColor('black').moveDown(1);
+            
+            // Separator line
+            doc.moveTo(50, doc.y)
+               .lineTo(550, doc.y)
+               .stroke();
+            
+            doc.moveDown(1);
+            
+            // Contract title
+            doc.fontSize(14)
+               .font('Helvetica-Bold')
+               .text('PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI', { align: 'center' });
+            
+            doc.moveDown(0.5);
+            doc.fontSize(11)
+               .font('Helvetica')
+               .text(`Nomor Kontrak: ${contract.number || 'N/A'}`, { align: 'center' });
+            
+            doc.moveDown(1.5);
+
+            // Contract info box
+            const infoY = doc.y;
+            doc.rect(50, infoY, 500, 80).stroke();
+            
+            doc.fontSize(10)
+               .font('Helvetica-Bold')
+               .text('INFORMASI KONTRAK', 60, infoY + 10);
+            
+            doc.fontSize(9)
+               .font('Helvetica')
+               .text(`Nama: ${user.name || 'N/A'}`, 60, infoY + 25)
+               .text(`Email: ${user.email || 'N/A'}`, 60, infoY + 40)
+               .text(`Trading ID: ${user.trading_account || 'N/A'}`, 300, infoY + 25)
+               .text(`Nilai: ${formatCurrency(contract.amount || 0)}`, 300, infoY + 40)
+               .text(`Tanggal: ${new Date(contract.createdAt).toLocaleDateString('id-ID')}`, 60, infoY + 55);
+            
+            doc.y = infoY + 90;
+            doc.moveDown(1);
+
+            // Contract content
+            console.log('📋 Processing contract content...');
+            
+            let content = contract.content || '';
+            
+            if (!content.trim()) {
+                content = `
+# PERJANJIAN LAYANAN KERJA SAMA KONSULTASI INVESTASI
+
+**Pihak A:** {{USER_NAME}}
+**Pihak B:** PT. Konsultasi Profesional Indonesia
+
+Dengan ini kedua belah pihak sepakat untuk melakukan kerja sama konsultasi investasi dengan nilai {{AMOUNT}} sesuai dengan ketentuan yang berlaku.
+
+**Tanggal Kontrak:** {{CONTRACT_DATE}}
+**Nomor Kontrak:** {{CONTRACT_NUMBER}}
+
+Kontrak ini sah dan mengikat kedua belah pihak.
+                `;
+            }
+            
+            // Replace variables
+            const replacements = {
+                '{{USER_NAME}}': user.name || '[Nama User]',
+                '{{USER_EMAIL}}': user.email || '[Email User]',
+                '{{USER_PHONE}}': user.phone || '[Telepon User]',
+                '{{TRADING_ID}}': user.trading_account || '[Trading ID]',
+                '{{CONTRACT_NUMBER}}': contract.number || '[Nomor Kontrak]',
+                '{{CONTRACT_DATE}}': contract.createdAt ? 
+                    new Date(contract.createdAt).toLocaleDateString('id-ID') : 
+                    '[Tanggal Kontrak]',
+                '{{AMOUNT}}': contract.amount ? 
+                    formatCurrency(contract.amount) : 
+                    '[Jumlah]',
+                '{{SIGNED_DATE}}': contract.signed_at ? 
+                    new Date(contract.signed_at).toLocaleString('id-ID') : 
+                    '[Tanggal TTD]'
+            };
+
+            // Replace system variables
+            Object.keys(replacements).forEach(key => {
+                try {
+                    const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+                    content = content.replace(regex, replacements[key]);
+                } catch (error) {
+                    console.warn('⚠️ Error replacing variable:', key);
+                }
+            });
+
+            // Replace custom variables
+            if (contract.variables && typeof contract.variables === 'object') {
+                Object.keys(contract.variables).forEach(key => {
+                    try {
+                        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+                        const value = contract.variables[key] || `[${key} - Tidak Diisi]`;
+                        content = content.replace(regex, value);
+                    } catch (error) {
+                        console.warn('⚠️ Error replacing custom variable:', key);
+                    }
+                });
+            }
+
+            // Process content line by line
+            const lines = content.split('\n');
+            let lineCount = 0;
+            
+            for (const line of lines) {
+                try {
+                    lineCount++;
+                    const trimmedLine = line.trim();
+                    
+                    if (lineCount > 500) {
+                        doc.fontSize(10)
+                           .text('... [Konten dipotong untuk mencegah error] ...', { align: 'center' });
+                        break;
+                    }
+                    
+                    if (doc.y > 750) {
+                        doc.addPage();
+                    }
+                    
+                    if (!trimmedLine) {
+                        doc.moveDown(0.3);
+                        continue;
+                    }
+                    
+                    if (trimmedLine.startsWith('# ')) {
+                        doc.fontSize(12)
+                           .font('Helvetica-Bold')
+                           .text(trimmedLine.substring(2), { align: 'center' });
+                        doc.moveDown(0.5);
+                    } else if (trimmedLine.startsWith('## ')) {
+                        doc.fontSize(11)
+                           .font('Helvetica-Bold')
+                           .fillColor('#0066CC')
+                           .text(trimmedLine.substring(3));
+                        doc.fillColor('black');
+                        doc.moveDown(0.3);
+                    } else if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
+                        const text = trimmedLine.replace(/\*\*/g, '');
+                        doc.fontSize(9)
+                           .font('Helvetica-Bold')
+                           .text(text);
+                        doc.moveDown(0.2);
+                    } else if (trimmedLine === '---') {
+                        doc.moveDown(0.3);
+                        doc.moveTo(50, doc.y)
+                           .lineTo(550, doc.y)
+                           .stroke();
+                        doc.moveDown(0.3);
+                    } else {
+                        const processedLine = trimmedLine.replace(/\*\*(.*?)\*\*/g, '$1');
+                        doc.fontSize(9)
+                           .font('Helvetica')
+                           .text(processedLine, {
+                               align: 'justify',
+                               lineGap: 2
+                           });
+                        doc.moveDown(0.2);
+                    }
+                } catch (lineError) {
+                    console.warn(`⚠️ Error processing line ${lineCount}:`, lineError.message);
+                }
+            }
+
+            // Signature section
+            doc.addPage();
+            
+            doc.fontSize(16)
+               .font('Helvetica-Bold')
+               .text('HALAMAN PENANDATANGANAN', { align: 'center' });
+            
+            doc.moveDown(2);
+            
+            if (signatureData && contract.signed_at) {
+                doc.fontSize(12)
+                   .font('Helvetica-Bold')
+                   .fillColor('#008000')
+                   .text('✓ KONTRAK TELAH DITANDATANGANI', { align: 'center' });
+                
+                doc.fillColor('black');
+                doc.moveDown(2);
+                
+                const signY = doc.y;
+                
+                doc.fontSize(10)
+                   .font('Helvetica-Bold')
+                   .text('Perwakilan Pihak B:', 80, signY);
+                
+                doc.fontSize(9)
+                   .font('Helvetica')
+                   .text('Prof. Bima Agung Rachel', 80, signY + 60);
+                
+                doc.fontSize(10)
+                   .font('Helvetica-Bold')
+                   .text('Pihak A:', 350, signY);
+                
+                doc.fontSize(9)
+                   .font('Helvetica')
+                   .text(`${user.name}`, 350, signY + 60);
+                
+                doc.moveDown(6);
+                doc.fontSize(9)
+                   .text(`Ditandatangani pada: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, 
+                         { align: 'center' });
+                
+            } else {
+                doc.fontSize(12)
+                   .fillColor('#FF6600')
+                   .text('⏳ MENUNGGU TANDA TANGAN', { align: 'center' });
+                doc.fillColor('black');
+            }
+
+            // Footer
+            doc.fontSize(8)
+               .font('Helvetica')
+               .text(`Dokumen dibuat otomatis oleh TradeStation pada ${new Date().toLocaleString('id-ID')}`,
+                     50, 770, { align: 'center' });
+
+            console.log('🔚 Finalizing PDF...');
+            doc.end();
+
+        } catch (error) {
+            console.error('❌ Error in PDF generation:', error);
+            reject(new Error(`PDF generation failed: ${error.message}`));
+        }
+    });
 }
 
 // =====================
 // ROUTES
 // =====================
 
-// Enhanced Health check
+// Health check
 app.get('/api/health', async (req, res) => {
     try {
-        const startTime = Date.now();
-        
-        // Test database connection
         await mongoose.connection.db.admin().ping();
         
-        const dbResponseTime = Date.now() - startTime;
-        
-        // Get system stats
-        const stats = {
-            status: 'healthy',
+        res.json({
+            status: 'sehat',
             timestamp: new Date().toISOString(),
-            version: config.app.version,
+            database: 'terhubung',
             environment: process.env.NODE_ENV || 'development',
-            uptime: Math.round(process.uptime()),
-            database: {
-                status: 'connected',
-                responseTime: dbResponseTime + 'ms',
-                type: 'MongoDB'
-            },
-            features: {
-                email_notifications: config.features.emailNotifications,
-                file_upload: config.features.fileUpload,
-                backup: config.features.backup,
-                analytics: config.features.analytics,
-                logo_support: fsSync.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png'))
-            },
-            memory: {
-                used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + ' MB',
-                total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + ' MB'
-            },
-            constants: {
-                contractStatus: CONTRACT_STATUS,
-                statusStyles: STATUS_STYLES
-            }
-        };
-        
-        res.json(stats);
+            mongodb: 'MongoDB Atlas',
+            uptime: process.uptime(),
+            version: '2.2.0'
+        });
     } catch (error) {
-        Logger.error('Health check failed', { error: error.message });
         res.status(503).json({
-            status: 'unhealthy',
+            status: 'tidak sehat',
             timestamp: new Date().toISOString(),
-            version: config.app.version,
-            error: 'Database connection failed'
+            database: 'terputus',
+            error: error.message
         });
     }
 });
@@ -1563,37 +769,15 @@ app.post('/api/auth/login', async (req, res) => {
         });
 
         if (!user) {
-            await logAuditActivity('user', null, 'login_failed', `Failed login attempt for: ${email}`, null, req);
             return res.status(401).json({ error: 'Email atau password salah' });
-        }
-
-        // Check account lockout
-        if (user.locked_until && user.locked_until > new Date()) {
-            return res.status(423).json({ 
-                error: 'Akun terkunci sementara',
-                lockedUntil: user.locked_until
-            });
         }
 
         const validPassword = await bcrypt.compare(password, user.password);
         if (!validPassword) {
-            // Increment login attempts
-            user.login_attempts = (user.login_attempts || 0) + 1;
-            
-            if (user.login_attempts >= config.security.maxLoginAttempts) {
-                user.locked_until = new Date(Date.now() + config.security.lockoutTime);
-                await logAuditActivity('user', user._id, 'account_locked', 'Account locked due to too many failed attempts', null, req);
-            }
-            
-            await user.save();
             return res.status(401).json({ error: 'Email atau password salah' });
         }
 
-        // Reset login attempts on successful login
-        user.login_attempts = 0;
-        user.locked_until = undefined;
-        user.last_login = new Date();
-        await user.save();
+        await User.findByIdAndUpdate(user._id, { last_login: new Date() });
 
         const token = jwt.sign(
             { 
@@ -1602,154 +786,953 @@ app.post('/api/auth/login', async (req, res) => {
                 role: user.role,
                 iat: Math.floor(Date.now() / 1000)
             },
-            config.jwt.secret,
-            { expiresIn: config.jwt.expiresIn }
+            JWT_SECRET,
+            { expiresIn: '7d' }
         );
 
-        await logAuditActivity('user', user._id, 'login_success', 'User logged in successfully', user._id, req);
-
-        const userResponse = convertUserToCamelCase(user);
+        const userResponse = user.toObject();
         delete userResponse.password;
-        delete userResponse.loginAttempts;
-        delete userResponse.lockedUntil;
 
         res.json({
             message: 'Login berhasil',
             token,
-            user: userResponse
+            user: {
+                ...userResponse,
+                tradingAccount: user.trading_account
+            }
         });
     } catch (error) {
-        Logger.error('Login error', { error: error.message });
+        console.error('Error login:', error);
         res.status(500).json({ error: 'Login gagal' });
     }
 });
 
 app.get('/api/auth/me', authenticateToken, async (req, res) => {
     try {
-        const userResponse = convertUserToCamelCase(req.user);
+        const userResponse = req.user.toObject();
         delete userResponse.password;
-        delete userResponse.loginAttempts;
-        delete userResponse.lockedUntil;
         
-        res.json({ user: userResponse });
+        res.json({
+            user: {
+                ...userResponse,
+                tradingAccount: req.user.trading_account
+            }
+        });
     } catch (error) {
-        Logger.error('Error getting user info', { error: error.message });
+        console.error('Error mendapatkan info user:', error);
         res.status(500).json({ error: 'Gagal mendapatkan info user' });
     }
 });
 
-app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-
-        if (!currentPassword || !newPassword) {
-            return res.status(400).json({ error: 'Password lama dan baru harus diisi' });
-        }
-
-        if (newPassword.length < 6) {
-            return res.status(400).json({ error: 'Password baru minimal 6 karakter' });
-        }
-
-        const user = await User.findById(req.user._id);
-        const validPassword = await bcrypt.compare(currentPassword, user.password);
-
-        if (!validPassword) {
-            return res.status(400).json({ error: 'Password lama tidak benar' });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, config.security.bcryptRounds);
-        
-        // Store password history
-        const passwordHistory = user.security?.password_history || [];
-        passwordHistory.push({
-            password: user.password,
-            changed_at: new Date()
-        });
-        
-        // Keep only last 5 passwords
-        if (passwordHistory.length > 5) {
-            passwordHistory.shift();
-        }
-
-        await User.findByIdAndUpdate(req.user._id, { 
-            password: hashedPassword,
-            'security.last_password_change': new Date(),
-            'security.password_history': passwordHistory
-        });
-
-        await logAuditActivity('user', req.user._id, 'password_changed', 'User changed password', req.user._id, req);
-
-        res.json({ message: 'Password berhasil diubah' });
-    } catch (error) {
-        Logger.error('Error changing password', { error: error.message });
-        res.status(500).json({ error: 'Gagal mengubah password' });
-    }
-});
-
 // =====================
-// FILE UPLOAD ROUTES
+// PUBLIC CONTRACT ACCESS
 // =====================
 
-app.post('/api/upload', authenticateToken, upload.single('file'), async (req, res) => {
+app.get('/api/contracts/access/:token', async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({ error: 'File tidak ditemukan' });
+        const { token } = req.params;
+
+        if (!token || token.length < 32) {
+            return res.status(400).json({ error: 'Token akses tidak valid' });
         }
+
+        const contract = await Contract.findOne({ access_token: token })
+            .populate('user_id', 'name email phone trading_account is_active')
+            .populate('template_id', 'name content variables');
+
+        if (!contract || !contract.user_id || !contract.user_id.is_active) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan atau akses ditolak' });
+        }
+
+        if (contract.expiry_date && new Date() > contract.expiry_date) {
+            await Contract.findByIdAndUpdate(contract._id, { status: 'expired' });
+            await logContractActivity(contract._id, 'expired', 'Kontrak kedaluwarsa karena tanggal habis', null, req);
+            return res.status(410).json({ error: 'Kontrak sudah kedaluwarsa' });
+        }
+
+        if (contract.status === 'sent') {
+            await Contract.findByIdAndUpdate(contract._id, { 
+                status: 'viewed',
+                viewed_at: new Date()
+            });
+            await logContractActivity(contract._id, 'viewed', 'Kontrak dilihat oleh klien', contract.user_id._id, req);
+        }
+
+        let content = contract.template_id?.content || contract.content || '';
+        const variables = contract.variables || {};
         
-        await logAuditActivity('file', req.file.filename, 'file_uploaded', 
-            `File uploaded: ${req.file.originalname}`, req.user._id, req);
-        
+        const replacements = {
+            '{{USER_NAME}}': contract.user_id.name,
+            '{{USER_EMAIL}}': contract.user_id.email || '',
+            '{{USER_PHONE}}': contract.user_id.phone || '',
+            '{{TRADING_ID}}': contract.user_id.trading_account || '',
+            '{{CONTRACT_NUMBER}}': contract.number,
+            '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
+            '{{AMOUNT}}': formatCurrency(contract.amount),
+            '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
+        };
+
+        Object.keys(replacements).forEach(key => {
+            const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+            content = content.replace(regex, replacements[key]);
+        });
+
+        Object.keys(variables).forEach(key => {
+            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+            content = content.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
+        });
+
         res.json({
-            message: 'File berhasil diupload',
-            file: {
-                id: req.file.filename,
-                originalName: req.file.originalname,
-                filename: req.file.filename,
-                size: req.file.size,
-                mimetype: req.file.mimetype,
-                path: req.file.path
+            data: {
+                ...contract.toObject(),
+                content,
+                canSign: contract.status === 'viewed' || contract.status === 'sent',
+                user: {
+                    name: contract.user_id.name,
+                    email: contract.user_id.email,
+                    phone: contract.user_id.phone,
+                    trading_account: contract.user_id.trading_account
+                },
+                template: contract.template_id ? {
+                    name: contract.template_id.name,
+                    variables: contract.template_id.variables
+                } : null
             }
         });
     } catch (error) {
-        Logger.error('File upload error', { error: error.message });
-        res.status(500).json({ error: 'Gagal mengupload file' });
+        console.error('Error akses kontrak:', error);
+        res.status(500).json({ error: 'Gagal mengakses kontrak' });
     }
 });
 
-app.post('/api/upload/multiple', authenticateToken, upload.array('files', 5), async (req, res) => {
+app.post('/api/contracts/access/:token/sign', async (req, res) => {
     try {
-        if (!req.files || req.files.length === 0) {
-            return res.status(400).json({ error: 'File tidak ditemukan' });
+        const { token } = req.params;
+        const { signatureData, variables, clientName, clientEmail } = req.body;
+
+        if (!signatureData) {
+            return res.status(400).json({ error: 'Data tanda tangan diperlukan' });
         }
+
+        if (!signatureData.startsWith('data:image/')) {
+            return res.status(400).json({ error: 'Format tanda tangan tidak valid' });
+        }
+
+        const contract = await Contract.findOne({ access_token: token })
+            .populate('user_id', 'name email phone trading_account');
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        if (contract.status === 'signed' || contract.status === 'completed') {
+            return res.status(400).json({ error: 'Kontrak sudah ditandatangani' });
+        }
+
+        if (!['sent', 'viewed'].includes(contract.status)) {
+            return res.status(400).json({ error: 'Kontrak belum siap untuk ditandatangani' });
+        }
+
+        if (clientName && clientName.toLowerCase() !== contract.user_id.name.toLowerCase()) {
+            return res.status(400).json({ error: 'Nama klien tidak cocok dengan kontrak' });
+        }
+
+        if (clientEmail && clientEmail.toLowerCase() !== contract.user_id.email.toLowerCase()) {
+            return res.status(400).json({ error: 'Email klien tidak cocok dengan kontrak' });
+        }
+
+        const finalVariables = variables ? { ...contract.variables, ...variables } : contract.variables;
+        const signedAt = new Date();
         
-        const uploadedFiles = req.files.map(file => ({
-            id: file.filename,
-            originalName: file.originalname,
-            filename: file.filename,
-            size: file.size,
-            mimetype: file.mimetype,
-            path: file.path
-        }));
-        
-        await logAuditActivity('file', 'multiple', 'files_uploaded', 
-            `${req.files.length} files uploaded`, req.user._id, req);
-        
-        res.json({
-            message: `${req.files.length} file berhasil diupload`,
-            files: uploadedFiles
+        await Contract.findByIdAndUpdate(contract._id, {
+            status: 'signed',
+            signature_data: signatureData,
+            signed_at: signedAt,
+            variables: finalVariables,
+            ip_signed: req.ip,
+            user_agent_signed: req.get('User-Agent')
+        });
+
+        await logContractActivity(
+            contract._id, 
+            'signed', 
+            'Kontrak ditandatangani dengan tanda tangan digital', 
+            contract.user_id._id, 
+            req
+        );
+
+        res.json({ 
+            message: 'Kontrak berhasil ditandatangani',
+            pdfDownloadUrl: `/api/contracts/download/${contract._id}`,
+            signedAt: signedAt.toISOString(),
+            contractNumber: contract.number
         });
     } catch (error) {
-        Logger.error('Multiple file upload error', { error: error.message });
-        res.status(500).json({ error: 'Gagal mengupload file' });
+        console.error('Error tanda tangan kontrak:', error);
+        res.status(500).json({ error: 'Gagal menandatangani kontrak' });
     }
 });
 
 // =====================
-// CONTRACT ROUTES (Enhanced with all previous functionality)
+// DOWNLOAD PDF ENDPOINT
 // =====================
 
-// [Previous contract routes with enhanced logging, security, and email notifications]
-// ... (Include all the enhanced contract routes from the previous code)
+app.get('/api/contracts/download/:contractId', async (req, res) => {
+    try {
+        const { contractId } = req.params;
+        
+        console.log('📥 Download request for contract:', contractId);
+
+        if (!contractId || !mongoose.Types.ObjectId.isValid(contractId)) {
+            console.log('❌ Invalid contract ID:', contractId);
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
+        }
+
+        const contract = await Contract.findById(contractId)
+            .populate('user_id', 'name email phone trading_account')
+            .lean();
+
+        if (!contract) {
+            console.log('❌ Contract not found:', contractId);
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        if (!contract.user_id) {
+            console.log('❌ Contract user not found:', contractId);
+            return res.status(404).json({ error: 'Data user kontrak tidak ditemukan' });
+        }
+
+        console.log('✅ Contract found:', {
+            id: contractId,
+            number: contract.number,
+            status: contract.status,
+            user: contract.user_id.name,
+            amount: contract.amount
+        });
+
+        console.log('🔄 Starting PDF generation...');
+        
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('PDF generation timeout')), 30000)
+        );
+        
+        const pdfPromise = generateContractPDF(contract, contract.user_id, contract.signature_data);
+        
+        const pdfBuffer = await Promise.race([pdfPromise, timeoutPromise]);
+
+        if (!pdfBuffer || pdfBuffer.length === 0) {
+            throw new Error('File PDF kosong atau tidak valid');
+        }
+
+        console.log('✅ PDF generated successfully, size:', pdfBuffer.length);
+
+        logContractActivity(
+            contract._id,
+            'downloaded',
+            'PDF kontrak diunduh',
+            null,
+            req
+        ).catch(err => console.warn('⚠️ Failed to log activity:', err.message));
+
+        const safeName = (contract.user_id.name || 'User')
+            .replace(/[^a-zA-Z0-9\s]/g, '')
+            .replace(/\s+/g, '_')
+            .substring(0, 50);
+        
+        const filename = `Kontrak_${contract.number}_${safeName}.pdf`;
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Length', pdfBuffer.length);
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
+        console.log('📤 Sending PDF to client...');
+        res.send(pdfBuffer);
+
+    } catch (error) {
+        console.error('❌ Download error:', {
+            contractId: req.params.contractId,
+            error: error.message,
+            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+
+        if (res.headersSent) {
+            return res.end();
+        }
+
+        res.status(500).json({ 
+            error: 'Gagal mendownload kontrak',
+            message: error.message,
+            details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        });
+    }
+});
+
+// Test PDF endpoint
+app.get('/api/contracts/:contractId/test-pdf', authenticateToken, async (req, res) => {
+    try {
+        const { contractId } = req.params;
+        
+        const contract = await Contract.findById(contractId)
+            .populate('user_id', 'name email phone trading_account')
+            .lean();
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        const testData = {
+            contract: {
+                id: contract._id,
+                number: contract.number,
+                title: contract.title,
+                amount: contract.amount,
+                status: contract.status,
+                content_available: !!contract.content,
+                content_length: contract.content ? contract.content.length : 0,
+                variables: contract.variables || {},
+                signed_at: contract.signed_at,
+                has_signature: !!contract.signature_data
+            },
+            user: contract.user_id ? {
+                name: contract.user_id.name,
+                email: contract.user_id.email,
+                phone: contract.user_id.phone,
+                trading_account: contract.user_id.trading_account
+            } : null,
+            system_info: {
+                node_version: process.version,
+                memory_usage: process.memoryUsage(),
+                uptime: process.uptime()
+            },
+            pdf_ready: contract.user_id && contract.content
+        };
+
+        res.json(testData);
+    } catch (error) {
+        console.error('Test PDF error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// =====================
+// CONTRACT MANAGEMENT ROUTES
+// =====================
+
+app.get('/api/contracts', authenticateToken, async (req, res) => {
+    try {
+        const { page = 1, limit = 50, status, user_id } = req.query;
+        
+        let query = {};
+        if (req.user.role !== 'admin') {
+            query.user_id = req.user._id;
+        } else {
+            if (status) query.status = status;
+            if (user_id) query.user_id = user_id;
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const contracts = await Contract.find(query)
+            .populate('user_id', 'name email phone trading_account')
+            .populate('template_id', 'name')
+            .populate('created_by', 'name')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+        
+        const total = await Contract.countDocuments(query);
+        
+        const formattedContracts = contracts.map(contract => ({
+            ...contract.toObject(),
+            user_name: contract.user_id?.name,
+            user_email: contract.user_id?.email,
+            trading_account: contract.user_id?.trading_account,
+            template_name: contract.template_id?.name,
+            created_by_name: contract.created_by?.name
+        }));
+        
+        res.json({ 
+            data: formattedContracts,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
+    } catch (error) {
+        console.error('Error mendapatkan kontrak:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
+    }
+});
+
+app.post('/api/contracts', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { 
+            title, 
+            templateId, 
+            userId, 
+            amount, 
+            variables, 
+            sendImmediately, 
+            expiryDate, 
+            adminNotes 
+        } = req.body;
+
+        if (!title || !templateId || !userId || amount === undefined) {
+            return res.status(400).json({ error: 'Field yang wajib: title, templateId, userId, amount' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: 'User tidak ditemukan' });
+        }
+
+        const template = await Template.findById(templateId);
+        if (!template) {
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
+        }
+
+        const contractNumber = generateContractNumber();
+        const accessToken = generateAccessToken();
+        const status = sendImmediately ? 'sent' : 'draft';
+
+        const contract = await Contract.create({
+            title: title.trim(),
+            number: contractNumber,
+            user_id: userId,
+            template_id: templateId,
+            amount: parseFloat(amount),
+            status,
+            variables: variables || {},
+            access_token: accessToken,
+            created_by: req.user._id,
+            sent_at: sendImmediately ? new Date() : null,
+            expiry_date: expiryDate ? new Date(expiryDate) : null,
+            admin_notes: adminNotes?.trim()
+        });
+
+        await logContractActivity(
+            contract._id,
+            'created',
+            `Kontrak dibuat oleh admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
+
+        if (sendImmediately) {
+            await logContractActivity(
+                contract._id,
+                'sent',
+                'Kontrak langsung dikirim ke klien',
+                req.user._id,
+                req
+            );
+        }
+
+        res.json({
+            message: 'Kontrak berhasil dibuat',
+            data: contract,
+            accessLink: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?token=${accessToken}`
+        });
+    } catch (error) {
+        console.error('Error membuat kontrak:', error);
+        res.status(500).json({ error: 'Gagal membuat kontrak' });
+    }
+});
+
+app.get('/api/contracts/:id/detail', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
+        }
+
+        const contract = await Contract.findById(id)
+            .populate('user_id', 'name email phone trading_account')
+            .populate('template_id', 'name content variables')
+            .populate('created_by', 'name email');
+
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        if (req.user.role !== 'admin' && contract.user_id._id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ error: 'Akses ditolak' });
+        }
+
+        let processedContent = contract.template_id?.content || contract.content || '';
+        const variables = contract.variables || {};
+        
+        const replacements = {
+            '{{USER_NAME}}': contract.user_id.name,
+            '{{USER_EMAIL}}': contract.user_id.email || '',
+            '{{USER_PHONE}}': contract.user_id.phone || '',
+            '{{TRADING_ID}}': contract.user_id.trading_account || '',
+            '{{CONTRACT_NUMBER}}': contract.number,
+            '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
+            '{{AMOUNT}}': formatCurrency(contract.amount),
+            '{{SIGNED_DATE}}': contract.signed_at ? new Date(contract.signed_at).toLocaleString('id-ID') : ''
+        };
+
+        Object.keys(replacements).forEach(key => {
+            const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
+            processedContent = processedContent.replace(regex, replacements[key]);
+        });
+
+        Object.keys(variables).forEach(key => {
+            const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+            processedContent = processedContent.replace(regex, variables[key] || `[${key} - Belum Diisi]`);
+        });
+
+        res.json({
+            data: {
+                ...contract.toObject(),
+                processedContent,
+                user: {
+                    name: contract.user_id.name,
+                    email: contract.user_id.email,
+                    phone: contract.user_id.phone,
+                    trading_account: contract.user_id.trading_account
+                },
+                template: contract.template_id ? {
+                    name: contract.template_id.name,
+                    content: contract.template_id.content,
+                    variables: contract.template_id.variables
+                } : null,
+                created_by: contract.created_by ? {
+                    name: contract.created_by.name,
+                    email: contract.created_by.email
+                } : null
+            }
+        });
+    } catch (error) {
+        console.error('Error mendapatkan detail kontrak:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan detail kontrak' });
+    }
+});
+
+app.post('/api/contracts/:id/generate-link', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID kontrak tidak valid' });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
+        }
+
+        if (contract.status === 'draft') {
+            await Contract.findByIdAndUpdate(id, { 
+                status: 'sent',
+                sent_at: new Date()
+            });
+
+            await logContractActivity(
+                contract._id,
+                'sent',
+                `Link kontrak dibuat dan dikirim oleh admin ${req.user.name}`,
+                req.user._id,
+                req
+            );
+        }
+
+        const accessLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/?token=${contract.access_token}`;
+        
+        res.json({
+            message: 'Link kontrak berhasil dibuat',
+            accessLink,
+            token: contract.access_token
+        });
+    } catch (error) {
+        console.error('Error membuat link:', error);
+        res.status(500).json({ error: 'Gagal membuat link' });
+    }
+});
+
+// =====================
+// TEMPLATE MANAGEMENT ROUTES
+// =====================
+
+app.get('/api/templates', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { category, search } = req.query;
+        let query = { is_active: true };
+        
+        if (category) query.category = category;
+        if (search) {
+            query.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { description: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const templates = await Template.find(query)
+            .populate('created_by', 'name')
+            .sort({ createdAt: -1 });
+            
+        const formattedTemplates = templates.map(template => ({
+            ...template.toObject(),
+            id: template._id.toString(),
+            created_by_name: template.created_by?.name
+        }));
+        
+        res.json({ data: formattedTemplates });
+    } catch (error) {
+        console.error('Error mendapatkan template:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan template' });
+    }
+});
+
+app.post('/api/templates', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { name, category, content, description } = req.body;
+        
+        if (!name || !content) {
+            return res.status(400).json({ error: 'Nama dan konten harus diisi' });
+        }
+        
+        const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
+        const variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
+        
+        const template = await Template.create({
+            name: name.trim(),
+            category: (category || 'general').trim(),
+            content: content.trim(),
+            description: description?.trim(),
+            variables,
+            created_by: req.user._id
+        });
+        
+        const templateResponse = template.toObject();
+        templateResponse.id = templateResponse._id.toString();
+        
+        res.json({
+            message: 'Template berhasil dibuat',
+            data: templateResponse
+        });
+    } catch (error) {
+        console.error('Error membuat template:', error);
+        res.status(500).json({ error: 'Gagal membuat template' });
+    }
+});
+
+app.put('/api/templates/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, category, content, description } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID template tidak valid' });
+        }
+
+        const template = await Template.findById(id);
+        if (!template) {
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
+        }
+
+        const updateData = {};
+        if (name) updateData.name = name.trim();
+        if (category) updateData.category = category.trim();
+        if (description !== undefined) updateData.description = description.trim();
+        
+        if (content) {
+            updateData.content = content.trim();
+            const variableMatches = content.match(/\{\{([A-Z_]+)\}\}/g) || [];
+            updateData.variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
+            updateData.version = template.version + 1;
+        }
+
+        const updatedTemplate = await Template.findByIdAndUpdate(id, updateData, { new: true });
+
+        res.json({
+            message: 'Template berhasil diupdate',
+            data: updatedTemplate
+        });
+    } catch (error) {
+        console.error('Error update template:', error);
+        res.status(500).json({ error: 'Gagal mengupdate template' });
+    }
+});
+
+app.get('/api/templates/:id/detail', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID template tidak valid' });
+        }
+
+        const template = await Template.findById(id)
+            .populate('created_by', 'name email');
+
+        if (!template) {
+            return res.status(404).json({ error: 'Template tidak ditemukan' });
+        }
+
+        res.json({
+            data: {
+                ...template.toObject(),
+                created_by_name: template.created_by?.name
+            }
+        });
+    } catch (error) {
+        console.error('Error mendapatkan detail template:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan detail template' });
+    }
+});
+
+// =====================
+// USER MANAGEMENT ROUTES
+// =====================
+
+app.get('/api/users', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { role, search, page = 1, limit = 50 } = req.query;
+        let query = { is_active: true };
+        
+        if (role) query.role = role;
+        if (search) {
+            query.$or = [
+                { name: { $regex: search, $options: 'i' } },
+                { email: { $regex: search, $options: 'i' } },
+                { trading_account: { $regex: search, $options: 'i' } }
+            ];
+        }
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
+        const users = await User.find(query)
+            .select('-password')
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(parseInt(limit));
+
+        const usersWithStats = await Promise.all(users.map(async (user) => {
+            const contractCount = await Contract.countDocuments({ user_id: user._id });
+            return {
+                ...user.toObject(),
+                contract_count: contractCount
+            };
+        }));
+
+        const total = await User.countDocuments(query);
+        
+        res.json({ 
+            data: usersWithStats,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
+    } catch (error) {
+        console.error('Error mendapatkan user:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan user' });
+    }
+});
+
+app.post('/api/users', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { name, email, phone, tradingAccount, role = 'user' } = req.body;
+
+        if (!name || !email || !phone) {
+            return res.status(400).json({ error: 'Nama, email, dan telepon harus diisi' });
+        }
+
+        const existingUser = await User.findOne({ email: email.toLowerCase() });
+        if (existingUser) {
+            return res.status(400).json({ error: 'Email sudah digunakan' });
+        }
+
+        const defaultPassword = 'trader123';
+        const hashedPassword = await bcrypt.hash(defaultPassword, 12);
+        const finalTradingAccount = tradingAccount || `TRD${Date.now().toString().slice(-6)}`;
+
+        const user = await User.create({
+            name: name.trim(),
+            email: email.toLowerCase().trim(),
+            phone: phone.trim(),
+            password: hashedPassword,
+            role: ['user', 'admin'].includes(role) ? role : 'user',
+            trading_account: finalTradingAccount,
+            balance: 0,
+            created_by: req.user._id
+        });
+
+        const userResponse = user.toObject();
+        delete userResponse.password;
+        userResponse.id = userResponse._id.toString();
+
+        res.json({
+            message: 'User berhasil dibuat',
+            data: userResponse,
+            defaultPassword
+        });
+    } catch (error) {
+        console.error('Error membuat user:', error);
+        res.status(500).json({ error: 'Gagal membuat user' });
+    }
+});
+
+app.put('/api/users/:id', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, phone, tradingAccount, role, balance, is_active } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID user tidak valid' });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ error: 'User tidak ditemukan' });
+        }
+
+        const updateData = {};
+        if (name) updateData.name = name.trim();
+        if (email) {
+            const existingUser = await User.findOne({ 
+                email: email.toLowerCase(), 
+                _id: { $ne: id } 
+            });
+            if (existingUser) {
+                return res.status(400).json({ error: 'Email sudah digunakan' });
+            }
+            updateData.email = email.toLowerCase().trim();
+        }
+        if (phone) updateData.phone = phone.trim();
+        if (tradingAccount) updateData.trading_account = tradingAccount.trim();
+        if (role && ['user', 'admin'].includes(role)) updateData.role = role;
+        if (balance !== undefined) updateData.balance = parseFloat(balance);
+        if (is_active !== undefined) updateData.is_active = is_active;
+
+        const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true }).select('-password');
+
+        res.json({
+            message: 'User berhasil diupdate',
+            data: updatedUser
+        });
+    } catch (error) {
+        console.error('Error update user:', error);
+        res.status(500).json({ error: 'Gagal mengupdate user' });
+    }
+});
+
+app.get('/api/users/:id/detail', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ error: 'ID user tidak valid' });
+        }
+
+        const user = await User.findById(id)
+            .select('-password')
+            .populate('created_by', 'name email');
+
+        if (!user) {
+            return res.status(404).json({ error: 'User tidak ditemukan' });
+        }
+
+        const contractStats = await Contract.aggregate([
+            { $match: { user_id: mongoose.Types.ObjectId(id) } },
+            { 
+                $group: { 
+                    _id: '$status', 
+                    count: { $sum: 1 },
+                    totalAmount: { $sum: '$amount' }
+                } 
+            }
+        ]);
+
+        res.json({
+            data: {
+                ...user.toObject(),
+                created_by_name: user.created_by?.name,
+                contractStats
+            }
+        });
+    } catch (error) {
+        console.error('Error mendapatkan detail user:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan detail user' });
+    }
+});
+
+// =====================
+// DASHBOARD STATS
+// =====================
+
+app.get('/api/stats/dashboard', authenticateToken, async (req, res) => {
+    try {
+        if (req.user.role === 'admin') {
+            const [
+                totalContracts,
+                pendingSignatures,
+                completedContracts,
+                totalValueResult,
+                recentActivity,
+                statusBreakdown
+            ] = await Promise.all([
+                Contract.countDocuments(),
+                Contract.countDocuments({ status: { $in: ['sent', 'viewed'] } }),
+                Contract.countDocuments({ status: { $in: ['signed', 'completed'] } }),
+                Contract.aggregate([{ $group: { _id: null, total: { $sum: '$amount' } } }]),
+                Contract.find().sort({ createdAt: -1 }).limit(5)
+                    .populate('user_id', 'name')
+                    .select('title status createdAt user_id'),
+                Contract.aggregate([
+                    { $group: { _id: '$status', count: { $sum: 1 } } }
+                ])
+            ]);
+
+            res.json({
+                data: {
+                    totalContracts,
+                    pendingSignatures,
+                    completedContracts,
+                    totalValue: totalValueResult[0]?.total || 0,
+                    recentActivity: recentActivity.map(contract => ({
+                        title: contract.title,
+                        status: contract.status,
+                        user_name: contract.user_id?.name,
+                        createdAt: contract.createdAt
+                    })),
+                    statusBreakdown: statusBreakdown.reduce((acc, item) => {
+                        acc[item._id] = item.count;
+                        return acc;
+                    }, {})
+                }
+            });
+        } else {
+            const [totalContracts, pendingSignatures, completedContracts] = await Promise.all([
+                Contract.countDocuments({ user_id: req.user._id }),
+                Contract.countDocuments({ user_id: req.user._id, status: { $in: ['sent', 'viewed'] } }),
+                Contract.countDocuments({ user_id: req.user._id, status: { $in: ['signed', 'completed'] } })
+            ]);
+
+            res.json({
+                data: { 
+                    totalContracts, 
+                    pendingSignatures, 
+                    completedContracts, 
+                    totalValue: 0 
+                }
+            });
+        }
+    } catch (error) {
+        console.error('Error statistik dashboard:', error);
+        res.status(500).json({ error: 'Gagal mendapatkan statistik dashboard' });
+    }
+});
 
 // =====================
 // ERROR HANDLING
@@ -1759,103 +1742,62 @@ app.use((req, res) => {
     res.status(404).json({ 
         error: 'Endpoint tidak ditemukan',
         path: req.path,
-        method: req.method,
-        version: config.app.version,
-        suggestion: 'Periksa dokumentasi API untuk endpoint yang tersedia'
+        method: req.method 
     });
 });
 
-app.use(errorHandler);
+app.use((error, req, res, next) => {
+    console.error('Error yang tidak ditangani:', error);
+    res.status(500).json({ 
+        error: 'Internal server error',
+        ...(process.env.NODE_ENV === 'development' && { 
+            details: error.message,
+            stack: error.stack 
+        })
+    });
+});
 
 // =====================
 // GRACEFUL SHUTDOWN
 // =====================
 
 process.on('SIGTERM', async () => {
-    Logger.info('SIGTERM received, shutting down gracefully...');
+    console.log('SIGTERM diterima, mematikan server dengan aman');
     await mongoose.connection.close();
     process.exit(0);
 });
 
 process.on('SIGINT', async () => {
-    Logger.info('SIGINT received, shutting down gracefully...');  
+    console.log('SIGINT diterima, mematikan server dengan aman');  
     await mongoose.connection.close();
     process.exit(0);
 });
 
-process.on('uncaughtException', (error) => {
-    Logger.error('Uncaught exception', { error: error.message, stack: error.stack });
-    process.exit(1);
-});
-
-process.on('unhandledRejection', (reason, promise) => {
-    Logger.error('Unhandled rejection', { reason, promise });
-    process.exit(1);
-});
-
 // =====================
-// SERVER STARTUP
+// START SERVER
 // =====================
 
 async function startServer() {
     try {
         await connectDatabase();
         
-        // Start backup scheduler
-        BackupService.scheduleBackups();
-        
         const server = app.listen(PORT, '0.0.0.0', () => {
-            Logger.info('TradeStation Premium Server Started', {
-                port: PORT,
-                version: config.app.version,
-                environment: process.env.NODE_ENV || 'development',
-                features: {
-                    email: config.features.emailNotifications,
-                    upload: config.features.fileUpload,
-                    backup: config.features.backup,
-                    analytics: config.features.analytics
-                }
-            });
-            
-            console.log(`
-🚀 TradeStation Premium Digital Contract Server v${config.app.version}
-📱 Server running on port ${PORT}
-🔗 Health Check: http://localhost:${PORT}/api/health
-💾 Database: MongoDB Connected
-📧 Email: ${config.features.emailNotifications ? 'Enabled' : 'Disabled'}
-📁 File Upload: ${config.features.fileUpload ? 'Enabled' : 'Disabled'}
-💾 Backup: ${config.features.backup ? 'Enabled' : 'Disabled'}
-🎨 Logo Support: ${fsSync.existsSync(path.join(__dirname, 'assets', 'tradestation-logo.png')) ? 'Enabled' : 'Disabled'}
-📋 PDF Engine: Advanced v3.0 with Premium Features
-✅ All premium features operational!
-🎯 Ready for production deployment!
-
-🔑 Default Login Credentials:
-   Admin: ${DEFAULT_USERS.ADMIN.email} / ${DEFAULT_USERS.ADMIN.password}
-   User:  ${DEFAULT_USERS.USER.email} / ${DEFAULT_USERS.USER.password}
-
-📈 Enhanced Features:
-   ✅ Advanced Security & Authentication
-   ✅ Email Notification System
-   ✅ File Upload & Management
-   ✅ Automated Backup System
-   ✅ Enhanced Audit Logging
-   ✅ Performance Monitoring
-   ✅ Error Tracking & Reporting
-   ✅ Mobile-Optimized PDF Generation
-   ✅ Rate Limiting & DDoS Protection
-   ✅ Database Optimization
-            `);
+            console.log(`🚀 TradeStation Digital Contract Server v2.2.0`);
+            console.log(`📱 Server berjalan di port ${PORT}`);
+            console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
+            console.log(`💾 Database: MongoDB Atlas Terhubung`);
+            console.log(`✅ Semua fitur berfungsi dengan baik!`);
         });
 
         server.on('error', (error) => {
-            Logger.error('Server error', { error: error.message });
+            console.error('Error server:', error);
         });
 
-        return server;
     } catch (error) {
-        Logger.error('Failed to start server', { error: error.message });
-        process.exit(1);
+        console.error('Gagal memulai server:', error);
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🚀 Server berjalan di port ${PORT} (koneksi DB gagal)`);
+        });
     }
 }
 
