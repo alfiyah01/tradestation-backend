@@ -440,20 +440,27 @@ app.post('/api/admin/login', async (req, res) => {
             return res.status(400).json({ error: 'Email dan password harus diisi' });
         }
 
+        // Check if input looks like contract number (probably user trying wrong endpoint)
+        if (!email.includes('@') && (email.startsWith('KTR') || email.match(/^[A-Z]{3}\d+/))) {
+            return res.status(400).json({ error: 'Gunakan email admin untuk login admin.' });
+        }
+
         const admin = await Admin.findOne({ email: email.toLowerCase() });
         if (!admin) {
-            return res.status(401).json({ error: 'Email atau password salah' });
+            return res.status(401).json({ error: 'Email atau password admin salah' });
         }
 
         const validPassword = await bcrypt.compare(password, admin.password);
         if (!validPassword) {
-            return res.status(401).json({ error: 'Email atau password salah' });
+            return res.status(401).json({ error: 'Email atau password admin salah' });
         }
 
         const token = jwt.sign({ adminId: admin._id }, JWT_SECRET, { expiresIn: '24h' });
 
+        console.log('✅ Admin login successful:', admin.name, admin.email);
+
         res.json({
-            message: 'Login berhasil',
+            message: 'Login admin berhasil',
             token,
             admin: {
                 id: admin._id,
@@ -463,7 +470,7 @@ app.post('/api/admin/login', async (req, res) => {
         });
     } catch (error) {
         console.error('Admin login error:', error);
-        res.status(500).json({ error: 'Login gagal' });
+        res.status(500).json({ error: 'Login admin gagal. Silakan coba lagi.' });
     }
 });
 
@@ -476,25 +483,38 @@ app.post('/api/user/login', async (req, res) => {
             return res.status(400).json({ error: 'Nomor kontrak dan password harus diisi' });
         }
 
+        // Check if input looks like email (probably admin trying wrong endpoint)
+        if (contractNumber.includes('@')) {
+            return res.status(400).json({ error: 'Format nomor kontrak tidak valid. Gunakan nomor kontrak yang diberikan admin.' });
+        }
+
         // Check password
         if (password !== FIXED_PASSWORD) {
-            return res.status(401).json({ error: 'Password salah' });
+            return res.status(401).json({ error: 'Password salah. Gunakan password yang diberikan admin.' });
         }
 
         // Find contract
         const contract = await Contract.findOne({ number: contractNumber });
         if (!contract) {
-            return res.status(404).json({ error: 'Nomor kontrak tidak ditemukan' });
+            return res.status(404).json({ error: 'Nomor kontrak tidak ditemukan. Pastikan nomor kontrak benar.' });
         }
 
         if (contract.status !== 'active') {
-            return res.status(400).json({ error: 'Kontrak tidak aktif' });
+            if (contract.status === 'draft') {
+                return res.status(400).json({ error: 'Kontrak belum diaktifkan oleh admin. Hubungi admin Anda.' });
+            } else if (contract.status === 'signed') {
+                return res.status(400).json({ error: 'Kontrak sudah ditandatangani sebelumnya.' });
+            } else {
+                return res.status(400).json({ error: 'Kontrak tidak aktif' });
+            }
         }
 
         const token = jwt.sign({ 
             contractId: contract._id,
             contractNumber: contract.number 
         }, JWT_SECRET, { expiresIn: '24h' });
+
+        console.log('✅ User login successful:', contract.number, contract.client_name);
 
         res.json({
             message: 'Login berhasil',
@@ -510,7 +530,7 @@ app.post('/api/user/login', async (req, res) => {
         });
     } catch (error) {
         console.error('User login error:', error);
-        res.status(500).json({ error: 'Login gagal' });
+        res.status(500).json({ error: 'Login gagal. Silakan coba lagi.' });
     }
 });
 
