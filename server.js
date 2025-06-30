@@ -525,7 +525,7 @@ Prof. Bima Agung Rachel                           ( {{USER_NAME}} )
 }
 
 // =====================
-// MIDDLEWARE FUNCTIONS
+// MIDDLEWARE FUNCTIONS (DIPINDAHKAN KE SINI)
 // =====================
 
 const authenticateToken = async (req, res, next) => {
@@ -913,6 +913,10 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
+// =====================
+// COMPREHENSIVE CORS CONFIGURATION
+// =====================
+
 // Primary CORS Configuration
 app.use(cors({
     origin: function (origin, callback) {
@@ -1139,6 +1143,13 @@ async function setupInitialData() {
 // Enhanced health check with comprehensive CORS debugging
 app.get('/api/health', async (req, res) => {
     console.log('🏥 Health check request from:', req.headers.origin || 'no-origin');
+    console.log('🏥 Request headers:', JSON.stringify({
+        origin: req.headers.origin,
+        'user-agent': req.headers['user-agent'],
+        'accept': req.headers.accept,
+        'access-control-request-method': req.headers['access-control-request-method'],
+        'access-control-request-headers': req.headers['access-control-request-headers']
+    }, null, 2));
     
     try {
         let dbStatus = 'disconnected';
@@ -1176,10 +1187,20 @@ app.get('/api/health', async (req, res) => {
                 used: Math.round(memoryUsage.heapUsed / 1024 / 1024) + 'MB',
                 total: Math.round(memoryUsage.heapTotal / 1024 / 1024) + 'MB'
             },
-            database_details: dbDetails
+            database_details: dbDetails,
+            cors_headers_set: {
+                'access-control-allow-origin': res.get('Access-Control-Allow-Origin'),
+                'access-control-allow-credentials': res.get('Access-Control-Allow-Credentials'),
+                'access-control-allow-methods': res.get('Access-Control-Allow-Methods')
+            }
         };
         
         console.log('✅ Health check response being sent');
+        console.log('🔧 Response headers will be:', {
+            'Access-Control-Allow-Origin': res.get('Access-Control-Allow-Origin'),
+            'Access-Control-Allow-Credentials': res.get('Access-Control-Allow-Credentials')
+        });
+        
         res.status(200).json(healthData);
         
     } catch (error) {
@@ -1328,6 +1349,981 @@ app.get('/api/auth/me', authenticateToken, async (req, res) => {
         console.error('Error mendapatkan info user:', error);
         res.status(500).json({ 
             error: 'Gagal mendapatkan info user',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// =====================
+// BULK OPERATIONS & ADMIN ROUTES (YANG TERLEWAT)
+// =====================
+
+// BULK delete users
+app.delete('/api/users/bulk', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { userIds } = req.body;
+        
+        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+            return res.status(400).json({ 
+                error: 'User IDs harus diisi',
+                code: 'USER_IDS_REQUIRED'
+            });
+        }
+
+        // Validate all IDs
+        const invalidIds = userIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+        if (invalidIds.length > 0) {
+            return res.status(400).json({ 
+                error: 'Beberapa ID user tidak valid',
+                code: 'INVALID_USER_IDS',
+                invalidIds
+            });
+        }
+
+        // Prevent deleting self
+        if (userIds.includes(req.user._id.toString())) {
+            return res.status(400).json({ 
+                error: 'Tidak dapat menghapus akun sendiri',
+                code: 'CANNOT_DELETE_SELF'
+            });
+        }
+
+        const result = await User.deleteMany({ 
+            _id: { $in: userIds },
+            _id: { $ne: req.user._id } // Extra safety
+        });
+
+        console.log('🗑️ Bulk user deletion:', result.deletedCount, 'users deleted by admin:', req.user.name);
+
+        res.json({
+            message: `${result.deletedCount} user berhasil dihapus`,
+            deletedCount: result.deletedCount
+        });
+    } catch (error) {
+        console.error('Error bulk deleting users:', error);
+        res.status(500).json({ 
+            error: 'Gagal menghapus users',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// TOGGLE user status (activate/deactivate)
+app.patch('/api/users/:id/toggle-status', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID user tidak valid',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User tidak ditemukan',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        // Prevent admin from deactivating themselves
+        if (user._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ 
+                error: 'Tidak dapat menonaktifkan akun sendiri',
+                code: 'CANNOT_DEACTIVATE_SELF'
+            });
+        }
+
+        const newStatus = !user.is_active;
+        await User.findByIdAndUpdate(id, { is_active: newStatus });
+
+        console.log('🔄 User status toggled:', user.name, 'to:', newStatus ? 'active' : 'inactive', 'by admin:', req.user.name);
+
+        res.json({
+            message: `User berhasil ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}`,
+            isActive: newStatus
+        });
+    } catch (error) {
+        console.error('Error toggling user status:', error);
+        res.status(500).json({ 
+            error: 'Gagal mengubah status user',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// =====================
+// SEARCH & FILTER ENDPOINTS
+// =====================
+
+// Advanced search for contracts
+app.get('/api/contracts/search', authenticateToken, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { 
+            q, 
+            status, 
+            dateFrom, 
+            dateTo, 
+            minAmount, 
+            maxAmount, 
+            userId,
+            templateId,
+            page = 1, 
+            limit = 20,
+            sortBy = 'createdAt',
+            sortOrder = 'desc'
+        } = req.query;
+
+        let query = {};
+        
+        // Role-based filtering
+        if (req.user.role !== 'admin') {
+            query.user_id = req.user._id;
+        } else {
+            if (userId) query.user_id = userId;
+        }
+
+        // Text search
+        if (q) {
+            query.$or = [
+                { title: { $regex: q, $options: 'i' } },
+                { number: { $regex: q, $options: 'i' } },
+                { admin_notes: { $regex: q, $options: 'i' } }
+            ];
+        }
+
+        // Status filter
+        if (status) {
+            if (Array.isArray(status)) {
+                query.status = { $in: status };
+            } else {
+                query.status = status;
+            }
+        }
+
+        // Date range filter
+        if (dateFrom || dateTo) {
+            query.createdAt = {};
+            if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+            if (dateTo) query.createdAt.$lte = new Date(dateTo);
+        }
+
+        // Amount range filter
+        if (minAmount || maxAmount) {
+            query.amount = {};
+            if (minAmount) query.amount.$gte = parseFloat(minAmount);
+            if (maxAmount) query.amount.$lte = parseFloat(maxAmount);
+        }
+
+        // Template filter
+        if (templateId) query.template_id = templateId;
+
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const sortDirection = sortOrder === 'desc' ? -1 : 1;
+
+        const [contracts, total] = await Promise.all([
+            Contract.find(query)
+                .populate('user_id', 'name email phone trading_account')
+                .populate('template_id', 'name')
+                .populate('created_by', 'name')
+                .sort({ [sortBy]: sortDirection })
+                .skip(skip)
+                .limit(parseInt(limit)),
+            Contract.countDocuments(query)
+        ]);
+
+        const formattedContracts = contracts.map(contract => ({
+            ...contract.toObject(),
+            user_name: contract.user_id?.name,
+            user_email: contract.user_id?.email,
+            trading_account: contract.user_id?.trading_account,
+            template_name: contract.template_id?.name,
+            created_by_name: contract.created_by?.name,
+            formatted_amount: formatCurrency(contract.amount),
+            can_download: ['signed', 'completed'].includes(contract.status)
+        }));
+
+        res.json({
+            data: formattedContracts,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            },
+            filters: {
+                q, status, dateFrom, dateTo, minAmount, maxAmount, userId, templateId
+            }
+        });
+    } catch (error) {
+        console.error('Error searching contracts:', error);
+        res.status(500).json({ 
+            error: 'Gagal mencari kontrak',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// =====================
+// REPORTING ENDPOINTS
+// =====================
+
+// Detailed analytics
+app.get('/api/reports/analytics', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { period = '30d' } = req.query;
+        
+        let dateRange = {};
+        const now = new Date();
+        
+        switch (period) {
+            case '7d':
+                dateRange = { $gte: new Date(now - 7 * 24 * 60 * 60 * 1000) };
+                break;
+            case '30d':
+                dateRange = { $gte: new Date(now - 30 * 24 * 60 * 60 * 1000) };
+                break;
+            case '90d':
+                dateRange = { $gte: new Date(now - 90 * 24 * 60 * 60 * 1000) };
+                break;
+            case '1y':
+                dateRange = { $gte: new Date(now - 365 * 24 * 60 * 60 * 1000) };
+                break;
+            default:
+                dateRange = { $gte: new Date(now - 30 * 24 * 60 * 60 * 1000) };
+        }
+
+        const [
+            contractStats,
+            statusDistribution,
+            dailySignings,
+            topTemplates,
+            userActivity,
+            amountDistribution
+        ] = await Promise.all([
+            // Basic contract statistics
+            Contract.aggregate([
+                { $match: { createdAt: dateRange } },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: 1 },
+                        totalAmount: { $sum: '$amount' },
+                        avgAmount: { $avg: '$amount' },
+                        signed: {
+                            $sum: { $cond: [{ $in: ['$status', ['signed', 'completed']] }, 1, 0] }
+                        }
+                    }
+                }
+            ]),
+            
+            // Status distribution
+            Contract.aggregate([
+                { $match: { createdAt: dateRange } },
+                {
+                    $group: {
+                        _id: '$status',
+                        count: { $sum: 1 },
+                        totalAmount: { $sum: '$amount' }
+                    }
+                }
+            ]),
+            
+            // Daily signing trend
+            Contract.aggregate([
+                { $match: { signed_at: dateRange } },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$signed_at' } },
+                        count: { $sum: 1 },
+                        amount: { $sum: '$amount' }
+                    }
+                },
+                { $sort: { _id: 1 } }
+            ]),
+            
+            // Top performing templates
+            Contract.aggregate([
+                { $match: { createdAt: dateRange, template_id: { $exists: true } } },
+                {
+                    $group: {
+                        _id: '$template_id',
+                        count: { $sum: 1 },
+                        signedCount: {
+                            $sum: { $cond: [{ $in: ['$status', ['signed', 'completed']] }, 1, 0] }
+                        },
+                        totalAmount: { $sum: '$amount' }
+                    }
+                },
+                { $sort: { count: -1 } },
+                { $limit: 10 },
+                {
+                    $lookup: {
+                        from: 'templates',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'template'
+                    }
+                }
+            ]),
+            
+            // User activity
+            Contract.aggregate([
+                { $match: { createdAt: dateRange } },
+                {
+                    $group: {
+                        _id: '$user_id',
+                        contractCount: { $sum: 1 },
+                        signedCount: {
+                            $sum: { $cond: [{ $in: ['$status', ['signed', 'completed']] }, 1, 0] }
+                        },
+                        totalAmount: { $sum: '$amount' }
+                    }
+                },
+                { $sort: { contractCount: -1 } },
+                { $limit: 10 },
+                {
+                    $lookup: {
+                        from: 'users',
+                        localField: '_id',
+                        foreignField: '_id',
+                        as: 'user'
+                    }
+                }
+            ]),
+            
+            // Amount distribution
+            Contract.aggregate([
+                { $match: { createdAt: dateRange } },
+                {
+                    $bucket: {
+                        groupBy: '$amount',
+                        boundaries: [0, 1000000, 5000000, 10000000, 50000000, 100000000, Infinity],
+                        default: 'Other',
+                        output: { count: { $sum: 1 } }
+                    }
+                }
+            ])
+        ]);
+
+        res.json({
+            data: {
+                period,
+                summary: contractStats[0] || {
+                    total: 0,
+                    totalAmount: 0,
+                    avgAmount: 0,
+                    signed: 0
+                },
+                statusDistribution: statusDistribution.reduce((acc, item) => {
+                    acc[item._id] = { count: item.count, totalAmount: item.totalAmount };
+                    return acc;
+                }, {}),
+                dailyTrend: dailySignings,
+                topTemplates: topTemplates.map(item => ({
+                    templateId: item._id,
+                    templateName: item.template[0]?.name || 'Unknown',
+                    count: item.count,
+                    signedCount: item.signedCount,
+                    conversionRate: item.count > 0 ? Math.round((item.signedCount / item.count) * 100) : 0,
+                    totalAmount: item.totalAmount
+                })),
+                topUsers: userActivity.map(item => ({
+                    userId: item._id,
+                    userName: item.user[0]?.name || 'Unknown',
+                    userEmail: item.user[0]?.email || 'Unknown',
+                    contractCount: item.contractCount,
+                    signedCount: item.signedCount,
+                    conversionRate: item.contractCount > 0 ? Math.round((item.signedCount / item.contractCount) * 100) : 0,
+                    totalAmount: item.totalAmount
+                })),
+                amountDistribution
+            }
+        });
+    } catch (error) {
+        console.error('Error getting analytics:', error);
+        res.status(500).json({ 
+            error: 'Gagal mendapatkan analytics',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// Export contracts to CSV
+app.get('/api/contracts/export', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { format = 'csv', status, dateFrom, dateTo } = req.query;
+        
+        let query = {};
+        if (status) query.status = status;
+        if (dateFrom || dateTo) {
+            query.createdAt = {};
+            if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
+            if (dateTo) query.createdAt.$lte = new Date(dateTo);
+        }
+
+        const contracts = await Contract.find(query)
+            .populate('user_id', 'name email phone trading_account')
+            .populate('template_id', 'name')
+            .populate('created_by', 'name')
+            .sort({ createdAt: -1 });
+
+        if (format === 'csv') {
+            const csvData = contracts.map(contract => [
+                contract.number,
+                contract.title,
+                contract.user_id?.name || '',
+                contract.user_id?.email || '',
+                contract.user_id?.trading_account || '',
+                contract.amount || 0,
+                contract.status,
+                new Date(contract.createdAt).toISOString(),
+                contract.signed_at ? new Date(contract.signed_at).toISOString() : '',
+                contract.template_id?.name || '',
+                contract.created_by?.name || ''
+            ]);
+
+            const headers = [
+                'Nomor Kontrak',
+                'Judul',
+                'Nama Klien',
+                'Email Klien',
+                'Trading ID',
+                'Nilai',
+                'Status',
+                'Tanggal Dibuat',
+                'Tanggal Ditandatangani',
+                'Template',
+                'Dibuat Oleh'
+            ];
+
+            const csv = [headers, ...csvData]
+                .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+                .join('\n');
+
+            res.setHeader('Content-Type', 'text/csv');
+            res.setHeader('Content-Disposition', 'attachment; filename="contracts_export.csv"');
+            res.send(csv);
+        } else {
+            // JSON export
+            const jsonData = contracts.map(contract => ({
+                number: contract.number,
+                title: contract.title,
+                client_name: contract.user_id?.name || '',
+                client_email: contract.user_id?.email || '',
+                trading_account: contract.user_id?.trading_account || '',
+                amount: contract.amount || 0,
+                status: contract.status,
+                created_at: contract.createdAt,
+                signed_at: contract.signed_at,
+                template_name: contract.template_id?.name || '',
+                created_by: contract.created_by?.name || '',
+                variables: contract.variables
+            }));
+
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Content-Disposition', 'attachment; filename="contracts_export.json"');
+            res.json(jsonData);
+        }
+
+        console.log('📊 Data exported:', contracts.length, 'contracts in', format, 'format by admin:', req.user.name);
+    } catch (error) {
+        console.error('Error exporting contracts:', error);
+        res.status(500).json({ 
+            error: 'Gagal mengekspor data',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// =====================
+// SYSTEM SETTINGS & PREFERENCES
+// =====================
+
+// Get system settings
+app.get('/api/settings', authenticateToken, authenticateAdmin, async (req, res) => {
+    try {
+        const settings = {
+            system: {
+                version: '2.3.1',
+                environment: process.env.NODE_ENV || 'development',
+                uptime: Math.floor(process.uptime()),
+                database_status: dbConnected ? 'connected' : 'disconnected'
+            },
+            features: {
+                email_notifications: false,
+                auto_reminder: false,
+                pdf_generation: true,
+                digital_signature: true,
+                bulk_operations: true
+            },
+            limits: {
+                max_contracts_per_user: 100,
+                max_template_size: 50000,
+                max_file_upload: 10485760, // 10MB
+                session_timeout: 7 * 24 * 60 * 60 // 7 days
+            },
+            security: {
+                require_email_verification: false,
+                max_login_attempts: 5,
+                lockout_duration: 15, // minutes
+                password_min_length: 6
+            }
+        };
+
+        res.json({ data: settings });
+    } catch (error) {
+        console.error('Error getting system settings:', error);
+        res.status(500).json({ 
+            error: 'Gagal mendapatkan pengaturan sistem',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// GET single user
+app.get('/api/users/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID user tidak valid',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        const user = await User.findById(id)
+            .select('-password -login_attempts -locked_until');
+
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User tidak ditemukan',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        // Get user statistics
+        const contractCount = await Contract.countDocuments({ user_id: user._id });
+        const signedCount = await Contract.countDocuments({ 
+            user_id: user._id, 
+            status: { $in: ['signed', 'completed'] } 
+        });
+
+        res.json({
+            data: {
+                ...user.toObject(),
+                contract_count: contractCount,
+                signed_count: signedCount,
+                completion_rate: contractCount > 0 ? Math.round((signedCount / contractCount) * 100) : 0
+            }
+        });
+    } catch (error) {
+        console.error('Error getting user:', error);
+        res.status(500).json({ 
+            error: 'Gagal mendapatkan user',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// UPDATE user endpoint
+app.put('/api/users/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, email, phone, tradingAccount, role, balance, isActive } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID user tidak valid',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User tidak ditemukan',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        // Prevent admin from changing their own role to user
+        if (user._id.toString() === req.user._id.toString() && role === 'user') {
+            return res.status(400).json({ 
+                error: 'Tidak dapat mengubah role admin sendiri',
+                code: 'CANNOT_CHANGE_OWN_ROLE'
+            });
+        }
+
+        const validationErrors = validateInput(req.body, {
+            name: { minLength: 2, maxLength: 100 },
+            email: { type: 'email' },
+            phone: { type: 'phone' }
+        });
+
+        if (validationErrors) {
+            return res.status(400).json({ 
+                error: 'Data input tidak valid',
+                details: validationErrors
+            });
+        }
+
+        // Check if email already exists (if changing email)
+        if (email && email !== user.email) {
+            const existingUser = await User.findOne({ email: email.toLowerCase(), _id: { $ne: id } });
+            if (existingUser) {
+                return res.status(400).json({ 
+                    error: 'Email sudah digunakan',
+                    code: 'EMAIL_EXISTS'
+                });
+            }
+        }
+
+        // Check if trading account already exists (if changing trading account)
+        if (tradingAccount && tradingAccount !== user.trading_account) {
+            const existingTradingAccount = await User.findOne({ trading_account: tradingAccount, _id: { $ne: id } });
+            if (existingTradingAccount) {
+                return res.status(400).json({ 
+                    error: 'Trading account sudah digunakan',
+                    code: 'TRADING_ACCOUNT_EXISTS'
+                });
+            }
+        }
+
+        const updateData = {};
+        if (name !== undefined) updateData.name = name.trim();
+        if (email !== undefined) updateData.email = email.toLowerCase().trim();
+        if (phone !== undefined) updateData.phone = phone.trim();
+        if (tradingAccount !== undefined) updateData.trading_account = tradingAccount.trim();
+        if (role !== undefined && ['user', 'admin'].includes(role)) updateData.role = role;
+        if (balance !== undefined) updateData.balance = parseFloat(balance);
+        if (isActive !== undefined) updateData.is_active = Boolean(isActive);
+
+        const updatedUser = await User.findByIdAndUpdate(id, updateData, { new: true })
+            .select('-password -login_attempts -locked_until');
+
+        console.log('👤 User updated:', updatedUser.name, updatedUser.email, 'by admin:', req.user.name);
+
+        res.json({
+            message: 'User berhasil diperbarui',
+            data: updatedUser.toObject()
+        });
+    } catch (error) {
+        console.error('Error updating user:', error);
+        if (error.code === 11000) {
+            return res.status(400).json({ 
+                error: 'Data user sudah ada (email atau trading account duplikat)',
+                code: 'DUPLICATE_USER'
+            });
+        }
+        res.status(500).json({ 
+            error: 'Gagal memperbarui user',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// GET single template
+app.get('/api/templates/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID template tidak valid',
+                code: 'INVALID_TEMPLATE_ID'
+            });
+        }
+
+        const template = await Template.findById(id)
+            .populate('created_by', 'name');
+
+        if (!template) {
+            return res.status(404).json({ 
+                error: 'Template tidak ditemukan',
+                code: 'TEMPLATE_NOT_FOUND'
+            });
+        }
+
+        res.json({
+            data: {
+                ...template.toObject(),
+                id: template._id.toString(),
+                created_by_name: template.created_by?.name,
+                variable_count: template.variables ? template.variables.length : 0,
+                content_length: template.content ? template.content.length : 0
+            }
+        });
+    } catch (error) {
+        console.error('Error getting template:', error);
+        res.status(500).json({ 
+            error: 'Gagal mendapatkan template',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// UPDATE template endpoint
+app.put('/api/templates/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, category, content, description } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID template tidak valid',
+                code: 'INVALID_TEMPLATE_ID'
+            });
+        }
+
+        const template = await Template.findById(id);
+        if (!template) {
+            return res.status(404).json({ 
+                error: 'Template tidak ditemukan',
+                code: 'TEMPLATE_NOT_FOUND'
+            });
+        }
+
+        const validationErrors = validateInput(req.body, {
+            name: { maxLength: 200 },
+            content: { maxLength: 50000 }
+        });
+
+        if (validationErrors) {
+            return res.status(400).json({ 
+                error: 'Data input tidak valid',
+                details: validationErrors
+            });
+        }
+
+        // Extract variables from content
+        const variableMatches = (content || template.content).match(/\{\{([A-Z_]+)\}\}/g) || [];
+        const variables = [...new Set(variableMatches.map(match => match.replace(/[{}]/g, '')))];
+
+        const updateData = {};
+        if (name !== undefined) updateData.name = name.trim();
+        if (category !== undefined) updateData.category = category.trim();
+        if (content !== undefined) updateData.content = content.trim();
+        if (description !== undefined) updateData.description = description?.trim();
+        updateData.variables = variables;
+        updateData.version = template.version + 1;
+
+        const updatedTemplate = await Template.findByIdAndUpdate(id, updateData, { new: true })
+            .populate('created_by', 'name');
+
+        console.log('📄 Template updated:', name || template.name, 'by admin:', req.user.name);
+
+        res.json({
+            message: 'Template berhasil diperbarui',
+            data: {
+                ...updatedTemplate.toObject(),
+                id: updatedTemplate._id.toString(),
+                created_by_name: updatedTemplate.created_by?.name,
+                variable_count: updatedTemplate.variables ? updatedTemplate.variables.length : 0,
+                content_length: updatedTemplate.content ? updatedTemplate.content.length : 0
+            }
+        });
+    } catch (error) {
+        console.error('Error updating template:', error);
+        if (error.code === 11000) {
+            return res.status(400).json({ 
+                error: 'Template dengan nama tersebut sudah ada',
+                code: 'DUPLICATE_TEMPLATE'
+            });
+        }
+        res.status(500).json({ 
+            error: 'Gagal memperbarui template',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// GET single contract
+app.get('/api/contracts/:id', authenticateToken, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID kontrak tidak valid',
+                code: 'INVALID_CONTRACT_ID'
+            });
+        }
+
+        const contract = await Contract.findById(id)
+            .populate('user_id', 'name email phone trading_account')
+            .populate('template_id', 'name')
+            .populate('created_by', 'name');
+
+        if (!contract) {
+            return res.status(404).json({ 
+                error: 'Kontrak tidak ditemukan',
+                code: 'CONTRACT_NOT_FOUND'
+            });
+        }
+
+        // Check access rights
+        if (req.user.role !== 'admin' && contract.user_id._id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ 
+                error: 'Akses ditolak',
+                code: 'ACCESS_DENIED'
+            });
+        }
+
+        res.json({
+            data: {
+                ...contract.toObject(),
+                user_name: contract.user_id?.name,
+                user_email: contract.user_id?.email,
+                trading_account: contract.user_id?.trading_account,
+                template_name: contract.template_id?.name,
+                created_by_name: contract.created_by?.name,
+                formatted_amount: formatCurrency(contract.amount),
+                can_download: ['signed', 'completed'].includes(contract.status)
+            }
+        });
+    } catch (error) {
+        console.error('Error getting contract:', error);
+        res.status(500).json({ 
+            error: 'Gagal mendapatkan kontrak',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// UPDATE contract endpoint
+app.put('/api/contracts/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, amount, status, variables, adminNotes, expiryDate } = req.body;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID kontrak tidak valid',
+                code: 'INVALID_CONTRACT_ID'
+            });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ 
+                error: 'Kontrak tidak ditemukan',
+                code: 'CONTRACT_NOT_FOUND'
+            });
+        }
+
+        // Validation
+        const validationErrors = validateInput(req.body, {
+            title: { maxLength: 200 },
+            amount: { min: 0 }
+        });
+
+        if (validationErrors) {
+            return res.status(400).json({ 
+                error: 'Data input tidak valid',
+                details: validationErrors
+            });
+        }
+
+        // Update fields
+        const updateData = {};
+        if (title !== undefined) updateData.title = title.trim();
+        if (amount !== undefined) updateData.amount = parseFloat(amount);
+        if (status !== undefined) updateData.status = status;
+        if (variables !== undefined) updateData.variables = variables;
+        if (adminNotes !== undefined) updateData.admin_notes = adminNotes?.trim();
+        if (expiryDate !== undefined) updateData.expiry_date = expiryDate ? new Date(expiryDate) : null;
+
+        const updatedContract = await Contract.findByIdAndUpdate(id, updateData, { new: true })
+            .populate('user_id', 'name email phone trading_account')
+            .populate('template_id', 'name')
+            .populate('created_by', 'name');
+
+        await logContractActivity(
+            contract._id,
+            'updated',
+            `Kontrak diperbarui oleh admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
+
+        console.log('📝 Contract updated:', contract.number, 'by admin:', req.user.name);
+
+        res.json({
+            message: 'Kontrak berhasil diperbarui',
+            data: {
+                ...updatedContract.toObject(),
+                user_name: updatedContract.user_id?.name,
+                user_email: updatedContract.user_id?.email,
+                trading_account: updatedContract.user_id?.trading_account,
+                template_name: updatedContract.template_id?.name,
+                created_by_name: updatedContract.created_by?.name,
+                formatted_amount: formatCurrency(updatedContract.amount),
+                can_download: ['signed', 'completed'].includes(updatedContract.status)
+            }
+        });
+    } catch (error) {
+        console.error('Error updating contract:', error);
+        res.status(500).json({ 
+            error: 'Gagal memperbarui kontrak',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// SEND/RESEND contract
+app.post('/api/contracts/:id/send', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID kontrak tidak valid',
+                code: 'INVALID_CONTRACT_ID'
+            });
+        }
+
+        const contract = await Contract.findById(id).populate('user_id', 'name email');
+        if (!contract) {
+            return res.status(404).json({ 
+                error: 'Kontrak tidak ditemukan',
+                code: 'CONTRACT_NOT_FOUND'
+            });
+        }
+
+        if (['signed', 'completed'].includes(contract.status)) {
+            return res.status(400).json({ 
+                error: 'Kontrak sudah ditandatangani',
+                code: 'ALREADY_SIGNED'
+            });
+        }
+
+        await Contract.findByIdAndUpdate(id, {
+            status: 'sent',
+            sent_at: new Date()
+        });
+
+        await logContractActivity(
+            contract._id,
+            'sent',
+            `Kontrak dikirim ulang oleh admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
+
+        console.log('📤 Contract sent:', contract.number, 'to:', contract.user_id.name);
+
+        res.json({
+            message: 'Kontrak berhasil dikirim',
+            accessLink: `${process.env.FRONTEND_URL || 'https://kontrakdigital.com'}/?token=${contract.access_token}`
+        });
+    } catch (error) {
+        console.error('Error sending contract:', error);
+        res.status(500).json({ 
+            error: 'Gagal mengirim kontrak',
             code: 'INTERNAL_ERROR'
         });
     }
@@ -1818,209 +2814,46 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, checkDatabaseCo
     }
 });
 
-// BULK delete users
-app.delete('/api/users/bulk', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
-    try {
-        const { userIds } = req.body;
-        
-        if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
-            return res.status(400).json({ 
-                error: 'User IDs harus diisi',
-                code: 'USER_IDS_REQUIRED'
-            });
-        }
-
-        // Validate all IDs
-        const invalidIds = userIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
-        if (invalidIds.length > 0) {
-            return res.status(400).json({ 
-                error: 'Beberapa ID user tidak valid',
-                code: 'INVALID_USER_IDS',
-                invalidIds
-            });
-        }
-
-        // Prevent deleting self
-        if (userIds.includes(req.user._id.toString())) {
-            return res.status(400).json({ 
-                error: 'Tidak dapat menghapus akun sendiri',
-                code: 'CANNOT_DELETE_SELF'
-            });
-        }
-
-        const result = await User.deleteMany({ 
-            _id: { $in: userIds },
-            _id: { $ne: req.user._id } // Extra safety
-        });
-
-        console.log('🗑️ Bulk user deletion:', result.deletedCount, 'users deleted by admin:', req.user.name);
-
-        res.json({
-            message: `${result.deletedCount} user berhasil dihapus`,
-            deletedCount: result.deletedCount
-        });
-    } catch (error) {
-        console.error('Error bulk deleting users:', error);
-        res.status(500).json({ 
-            error: 'Gagal menghapus users',
-            code: 'INTERNAL_ERROR'
-        });
-    }
-});
-
-// TOGGLE user status (activate/deactivate)
-app.patch('/api/users/:id/toggle-status', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+// DELETE contract endpoint
+app.delete('/api/contracts/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
     try {
         const { id } = req.params;
         
         if (!mongoose.Types.ObjectId.isValid(id)) {
             return res.status(400).json({ 
-                error: 'ID user tidak valid',
-                code: 'INVALID_USER_ID'
+                error: 'ID kontrak tidak valid',
+                code: 'INVALID_CONTRACT_ID'
             });
         }
 
-        const user = await User.findById(id);
-        if (!user) {
+        const contract = await Contract.findById(id);
+        if (!contract) {
             return res.status(404).json({ 
-                error: 'User tidak ditemukan',
-                code: 'USER_NOT_FOUND'
+                error: 'Kontrak tidak ditemukan',
+                code: 'CONTRACT_NOT_FOUND'
             });
         }
 
-        // Prevent admin from deactivating themselves
-        if (user._id.toString() === req.user._id.toString()) {
-            return res.status(400).json({ 
-                error: 'Tidak dapat menonaktifkan akun sendiri',
-                code: 'CANNOT_DEACTIVATE_SELF'
-            });
-        }
+        // Log activity before deletion
+        await logContractActivity(
+            contract._id,
+            'cancelled',
+            `Kontrak dihapus oleh admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
 
-        const newStatus = !user.is_active;
-        await User.findByIdAndUpdate(id, { is_active: newStatus });
+        await Contract.findByIdAndDelete(id);
 
-        console.log('🔄 User status toggled:', user.name, 'to:', newStatus ? 'active' : 'inactive', 'by admin:', req.user.name);
-
-        res.json({
-            message: `User berhasil ${newStatus ? 'diaktifkan' : 'dinonaktifkan'}`,
-            isActive: newStatus
-        });
-    } catch (error) {
-        console.error('Error toggling user status:', error);
-        res.status(500).json({ 
-            error: 'Gagal mengubah status user',
-            code: 'INTERNAL_ERROR'
-        });
-    }
-});
-
-// =====================
-// SEARCH & FILTER ENDPOINTS
-// =====================
-
-// Advanced search for contracts
-app.get('/api/contracts/search', authenticateToken, checkDatabaseConnection, async (req, res) => {
-    try {
-        const { 
-            q, 
-            status, 
-            dateFrom, 
-            dateTo, 
-            minAmount, 
-            maxAmount, 
-            userId,
-            templateId,
-            page = 1, 
-            limit = 20,
-            sortBy = 'createdAt',
-            sortOrder = 'desc'
-        } = req.query;
-
-        let query = {};
-        
-        // Role-based filtering
-        if (req.user.role !== 'admin') {
-            query.user_id = req.user._id;
-        } else {
-            if (userId) query.user_id = userId;
-        }
-
-        // Text search
-        if (q) {
-            query.$or = [
-                { title: { $regex: q, $options: 'i' } },
-                { number: { $regex: q, $options: 'i' } },
-                { admin_notes: { $regex: q, $options: 'i' } }
-            ];
-        }
-
-        // Status filter
-        if (status) {
-            if (Array.isArray(status)) {
-                query.status = { $in: status };
-            } else {
-                query.status = status;
-            }
-        }
-
-        // Date range filter
-        if (dateFrom || dateTo) {
-            query.createdAt = {};
-            if (dateFrom) query.createdAt.$gte = new Date(dateFrom);
-            if (dateTo) query.createdAt.$lte = new Date(dateTo);
-        }
-
-        // Amount range filter
-        if (minAmount || maxAmount) {
-            query.amount = {};
-            if (minAmount) query.amount.$gte = parseFloat(minAmount);
-            if (maxAmount) query.amount.$lte = parseFloat(maxAmount);
-        }
-
-        // Template filter
-        if (templateId) query.template_id = templateId;
-
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-        const sortDirection = sortOrder === 'desc' ? -1 : 1;
-
-        const [contracts, total] = await Promise.all([
-            Contract.find(query)
-                .populate('user_id', 'name email phone trading_account')
-                .populate('template_id', 'name')
-                .populate('created_by', 'name')
-                .sort({ [sortBy]: sortDirection })
-                .skip(skip)
-                .limit(parseInt(limit)),
-            Contract.countDocuments(query)
-        ]);
-
-        const formattedContracts = contracts.map(contract => ({
-            ...contract.toObject(),
-            user_name: contract.user_id?.name,
-            user_email: contract.user_id?.email,
-            trading_account: contract.user_id?.trading_account,
-            template_name: contract.template_id?.name,
-            created_by_name: contract.created_by?.name,
-            formatted_amount: formatCurrency(contract.amount),
-            can_download: ['signed', 'completed'].includes(contract.status)
-        }));
+        console.log('🗑️ Contract deleted:', contract.number, 'by admin:', req.user.name);
 
         res.json({
-            data: formattedContracts,
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total,
-                pages: Math.ceil(total / parseInt(limit))
-            },
-            filters: {
-                q, status, dateFrom, dateTo, minAmount, maxAmount, userId, templateId
-            }
+            message: 'Kontrak berhasil dihapus'
         });
     } catch (error) {
-        console.error('Error searching contracts:', error);
+        console.error('Error menghapus kontrak:', error);
         res.status(500).json({ 
-            error: 'Gagal mencari kontrak',
+            error: 'Gagal menghapus kontrak',
             code: 'INTERNAL_ERROR'
         });
     }
@@ -2126,6 +2959,42 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, checkDatabaseCo
         }
         res.status(500).json({ 
             error: 'Gagal membuat template',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// DELETE template endpoint
+app.delete('/api/templates/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID template tidak valid',
+                code: 'INVALID_TEMPLATE_ID'
+            });
+        }
+
+        const template = await Template.findById(id);
+        if (!template) {
+            return res.status(404).json({ 
+                error: 'Template tidak ditemukan',
+                code: 'TEMPLATE_NOT_FOUND'
+            });
+        }
+
+        await Template.findByIdAndDelete(id);
+
+        console.log('🗑️ Template deleted:', template.name, 'by admin:', req.user.name);
+
+        res.json({
+            message: 'Template berhasil dihapus'
+        });
+    } catch (error) {
+        console.error('Error menghapus template:', error);
+        res.status(500).json({ 
+            error: 'Gagal menghapus template',
             code: 'INTERNAL_ERROR'
         });
     }
@@ -2277,6 +3146,95 @@ app.post('/api/users', authenticateToken, authenticateAdmin, checkDatabaseConnec
     }
 });
 
+// DELETE user endpoint
+app.delete('/api/users/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID user tidak valid',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User tidak ditemukan',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        // Prevent deleting own account
+        if (user._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ 
+                error: 'Tidak dapat menghapus akun sendiri',
+                code: 'CANNOT_DELETE_SELF'
+            });
+        }
+
+        await User.findByIdAndDelete(id);
+
+        console.log('🗑️ User deleted:', user.name, user.email, 'by admin:', req.user.name);
+
+        res.json({
+            message: 'User berhasil dihapus'
+        });
+    } catch (error) {
+        console.error('Error menghapus user:', error);
+        res.status(500).json({ 
+            error: 'Gagal menghapus user',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// Reset password endpoint
+app.post('/api/users/:id/reset-password', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID user tidak valid',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User tidak ditemukan',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        const newPassword = 'trader123';
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+        await User.findByIdAndUpdate(id, {
+            password: hashedPassword,
+            login_attempts: 0,
+            $unset: { locked_until: 1 }
+        });
+
+        console.log('🔑 Password reset for user:', user.name, user.email, 'by admin:', req.user.name);
+
+        res.json({
+            message: 'Password berhasil direset',
+            newPassword,
+            note: 'Silakan berikan password baru kepada user'
+        });
+    } catch (error) {
+        console.error('Error reset password:', error);
+        res.status(500).json({ 
+            error: 'Gagal reset password',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 // =====================
 // DASHBOARD STATS
 // =====================
@@ -2405,6 +3363,57 @@ app.get('/api/stats/dashboard', authenticateToken, checkDatabaseConnection, asyn
         console.error('Error statistik dashboard:', error);
         res.status(500).json({ 
             error: 'Gagal mendapatkan statistik dashboard',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// =====================
+// ADDITIONAL UTILITY ROUTES
+// =====================
+
+// Get contract history
+app.get('/api/contracts/:id/history', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID kontrak tidak valid',
+                code: 'INVALID_CONTRACT_ID'
+            });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ 
+                error: 'Kontrak tidak ditemukan',
+                code: 'CONTRACT_NOT_FOUND'
+            });
+        }
+
+        // Check access rights
+        if (req.user.role !== 'admin' && contract.user_id.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ 
+                error: 'Akses ditolak',
+                code: 'ACCESS_DENIED'
+            });
+        }
+
+        const history = await ContractHistory.find({ contract_id: id })
+            .populate('performed_by', 'name email')
+            .sort({ createdAt: -1 });
+
+        res.json({
+            data: history.map(h => ({
+                ...h.toObject(),
+                performed_by_name: h.performed_by?.name
+            }))
+        });
+    } catch (error) {
+        console.error('Error mendapatkan history kontrak:', error);
+        res.status(500).json({ 
+            error: 'Gagal mendapatkan history kontrak',
             code: 'INTERNAL_ERROR'
         });
     }
