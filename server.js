@@ -24,7 +24,7 @@ app.use(helmet({
 }));
 
 // =====================
-// ENHANCED CORS CONFIGURATION - PERBAIKAN UTAMA
+// ENHANCED CORS CONFIGURATION
 // =====================
 
 const allowedOrigins = [
@@ -1777,6 +1777,49 @@ app.post('/api/contracts', authenticateToken, authenticateAdmin, checkDatabaseCo
     }
 });
 
+// DELETE contract endpoint
+app.delete('/api/contracts/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID kontrak tidak valid',
+                code: 'INVALID_CONTRACT_ID'
+            });
+        }
+
+        const contract = await Contract.findById(id);
+        if (!contract) {
+            return res.status(404).json({ 
+                error: 'Kontrak tidak ditemukan',
+                code: 'CONTRACT_NOT_FOUND'
+            });
+        }
+
+        // Log activity before deletion
+        await logContractActivity(
+            contract._id,
+            'cancelled',
+            `Kontrak dihapus oleh admin ${req.user.name}`,
+            req.user._id,
+            req
+        );
+
+        await Contract.findByIdAndDelete(id);
+
+        res.json({
+            message: 'Kontrak berhasil dihapus'
+        });
+    } catch (error) {
+        console.error('Error menghapus kontrak:', error);
+        res.status(500).json({ 
+            error: 'Gagal menghapus kontrak',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
 // =====================
 // ENHANCED TEMPLATE MANAGEMENT
 // =====================
@@ -1875,6 +1918,40 @@ app.post('/api/templates', authenticateToken, authenticateAdmin, checkDatabaseCo
         }
         res.status(500).json({ 
             error: 'Gagal membuat template',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// DELETE template endpoint
+app.delete('/api/templates/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID template tidak valid',
+                code: 'INVALID_TEMPLATE_ID'
+            });
+        }
+
+        const template = await Template.findById(id);
+        if (!template) {
+            return res.status(404).json({ 
+                error: 'Template tidak ditemukan',
+                code: 'TEMPLATE_NOT_FOUND'
+            });
+        }
+
+        await Template.findByIdAndDelete(id);
+
+        res.json({
+            message: 'Template berhasil dihapus'
+        });
+    } catch (error) {
+        console.error('Error menghapus template:', error);
+        res.status(500).json({ 
+            error: 'Gagal menghapus template',
             code: 'INTERNAL_ERROR'
         });
     }
@@ -2019,6 +2096,91 @@ app.post('/api/users', authenticateToken, authenticateAdmin, checkDatabaseConnec
         }
         res.status(500).json({ 
             error: 'Gagal membuat user',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// DELETE user endpoint
+app.delete('/api/users/:id', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID user tidak valid',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User tidak ditemukan',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        // Prevent deleting own account
+        if (user._id.toString() === req.user._id.toString()) {
+            return res.status(400).json({ 
+                error: 'Tidak dapat menghapus akun sendiri',
+                code: 'CANNOT_DELETE_SELF'
+            });
+        }
+
+        await User.findByIdAndDelete(id);
+
+        res.json({
+            message: 'User berhasil dihapus'
+        });
+    } catch (error) {
+        console.error('Error menghapus user:', error);
+        res.status(500).json({ 
+            error: 'Gagal menghapus user',
+            code: 'INTERNAL_ERROR'
+        });
+    }
+});
+
+// Reset password endpoint
+app.post('/api/users/:id/reset-password', authenticateToken, authenticateAdmin, checkDatabaseConnection, async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        if (!mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ 
+                error: 'ID user tidak valid',
+                code: 'INVALID_USER_ID'
+            });
+        }
+
+        const user = await User.findById(id);
+        if (!user) {
+            return res.status(404).json({ 
+                error: 'User tidak ditemukan',
+                code: 'USER_NOT_FOUND'
+            });
+        }
+
+        const newPassword = 'trader123';
+        const hashedPassword = await bcrypt.hash(newPassword, 12);
+
+        await User.findByIdAndUpdate(id, {
+            password: hashedPassword,
+            login_attempts: 0,
+            $unset: { locked_until: 1 }
+        });
+
+        res.json({
+            message: 'Password berhasil direset',
+            newPassword,
+            note: 'Silakan berikan password baru kepada user'
+        });
+    } catch (error) {
+        console.error('Error reset password:', error);
+        res.status(500).json({ 
+            error: 'Gagal reset password',
             code: 'INTERNAL_ERROR'
         });
     }
