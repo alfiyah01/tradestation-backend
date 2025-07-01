@@ -23,7 +23,12 @@ const PORT = process.env.PORT || 3000;
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rizalitam10:Yusrizal1993@cluster0.s0e5g5h.mongodb.net/kontrakdb?retryWrites=true&w=majority&appName=Cluster0';
 const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secret_key_2024_secure';
-const FIXED_PASSWORD = 'kontrakdigital2025'; // Password tetap untuk semua user
+const FIXED_PASSWORD = process.env.FIXED_PASSWORD || 'kontrakdigital2025'; // Password tetap untuk semua user
+
+// Railway compatibility
+const RAILWAY_DOMAIN = process.env.RAILWAY_PUBLIC_DOMAIN;
+const FRONTEND_URL = process.env.FRONTEND_URL || 
+                    (RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : 'http://localhost:3000');
 
 const allowedOrigins = [
     'http://localhost:3000',
@@ -31,6 +36,8 @@ const allowedOrigins = [
     'http://localhost:8080',
     'https://kontrak-production.up.railway.app',
     'https://kontrakdigital.com',
+    FRONTEND_URL,
+    RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null,
     process.env.FRONTEND_URL
 ].filter(Boolean);
 
@@ -408,7 +415,11 @@ async function connectDatabase() {
                 email: 'admin@kontrakdigital.com',
                 password: hashedPassword
             });
-            console.log('✅ Default admin created');
+            console.log('✅ Default admin created:');
+            console.log('   Email: admin@kontrakdigital.com');
+            console.log('   Password: admin123');
+        } else {
+            console.log('✅ Admin account exists: admin@kontrakdigital.com');
         }
         
     } catch (error) {
@@ -421,14 +432,34 @@ async function connectDatabase() {
 // ROUTES
 // =====================
 
+// =====================
+// STATIC FILES & ROUTES
+// =====================
+
+// Serve static files (for Railway deployment)
+app.use(express.static('public', {
+    maxAge: '1d',
+    etag: false
+}));
+
 // Health check
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
         database: dbConnected ? 'connected' : 'disconnected',
-        version: '3.0.0'
+        version: '3.0.0',
+        environment: process.env.NODE_ENV || 'development',
+        railway: {
+            domain: process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost',
+            deployment_id: process.env.RAILWAY_DEPLOYMENT_ID || 'local'
+        }
     });
+});
+
+// Serve frontend for root path
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/index.html');
 });
 
 // Admin login
@@ -883,10 +914,21 @@ async function startServer() {
         app.listen(PORT, '0.0.0.0', () => {
             console.log(`🚀 TradeStation Kontrak Digital v3.0`);
             console.log(`📱 Server running on port ${PORT}`);
-            console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
-            console.log(`👤 Admin: http://localhost:${PORT}/admin`);
-            console.log(`📝 User: http://localhost:${PORT}/user-login`);
+            console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+            
+            if (process.env.RAILWAY_PUBLIC_DOMAIN) {
+                console.log(`🔗 Railway URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
+                console.log(`🔗 App: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/`);
+                console.log(`🔗 Health: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`);
+            } else {
+                console.log(`🔗 Local URL: http://localhost:${PORT}/`);
+                console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
+            }
+            
             console.log(`💾 Database: ${dbConnected ? 'Connected ✅' : 'Disconnected ❌'}`);
+            console.log(`👤 Admin Login: admin@kontrakdigital.com / admin123`);
+            console.log(`📝 User Login: [Nomor Kontrak] / ${FIXED_PASSWORD}`);
+            console.log(`🔒 CORS Origins: ${allowedOrigins.length} configured`);
             console.log(`✅ Ready to serve!`);
         });
 
