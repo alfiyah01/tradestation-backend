@@ -1,3 +1,4 @@
+// CORS Fix Alternatif - v3.2.2
 const express = require('express');
 const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
@@ -26,6 +27,70 @@ const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secre
 const FIXED_PASSWORD = process.env.FIXED_PASSWORD || 'kontrakdigital2025';
 
 let dbConnected = false;
+
+// =====================
+// CORS SETUP - PALING AGRESIF
+// =====================
+
+// Disable semua security yang bisa interfere dengan CORS
+app.use((req, res, next) => {
+    // Log semua request untuk debugging
+    console.log(`🌐 ${req.method} ${req.path} from: ${req.headers.origin || 'no-origin'}`);
+    
+    // Set CORS headers paling permisif
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', '*');
+    res.header('Access-Control-Allow-Headers', '*');
+    res.header('Access-Control-Expose-Headers', '*');
+    res.header('Access-Control-Max-Age', '86400');
+    
+    // Tambahan headers untuk debugging
+    res.header('X-Custom-CORS', 'enabled');
+    res.header('X-Debug-Origin', req.headers.origin || 'none');
+    
+    // Handle preflight requests
+    if (req.method === 'OPTIONS') {
+        console.log('✅ Handling OPTIONS preflight for:', req.path);
+        return res.status(200).json({ message: 'CORS OK' });
+    }
+    
+    next();
+});
+
+// CORS middleware tambahan dengan cors library
+app.use(cors({
+    origin: true, // Allow all origins
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: ['*'],
+    exposedHeaders: ['*'],
+    maxAge: 86400,
+    optionsSuccessStatus: 200
+}));
+
+// Minimal helmet untuk menghindari conflict
+app.use(helmet({ 
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: false,
+    crossOriginOpenerPolicy: false
+}));
+
+// Body parsers
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
+
+// Rate limiting yang sangat permisif
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000, // Very high limit for testing
+    message: { error: 'Terlalu banyak permintaan, coba lagi nanti.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => false // Don't skip any requests
+});
+app.use('/api/', limiter);
 
 // =====================
 // DATABASE SCHEMAS
@@ -150,241 +215,39 @@ Prof. Bima Agung Rachel                    {{CLIENT_NAME}}
 }
 
 // =====================
-// PDF GENERATION
+// PDF GENERATION (simplified for space)
 // =====================
 
 async function generateContractPDF(contract) {
     return new Promise((resolve, reject) => {
         try {
-            console.log('📄 Generating PDF for contract:', contract.number);
-            
-            const doc = new PDFDocument({ 
-                margin: 50,
-                size: 'A4',
-                info: {
-                    Title: `Kontrak ${contract.number}`,
-                    Author: 'TradeStation Digital',
-                    Subject: contract.title
-                }
-            });
-            
+            const doc = new PDFDocument({ margin: 50, size: 'A4' });
             const buffers = [];
             
             doc.on('data', chunk => buffers.push(chunk));
-            doc.on('end', () => {
-                const pdfData = Buffer.concat(buffers);
-                console.log('✅ PDF generated, size:', pdfData.length);
-                resolve(pdfData);
-            });
+            doc.on('end', () => resolve(Buffer.concat(buffers)));
             doc.on('error', reject);
 
-            // Header
-            doc.fontSize(20)
-               .font('Helvetica-Bold')
-               .fillColor('#0066CC')
-               .text('TradeStation Digital', { align: 'center' });
-            
-            doc.fontSize(14)
-               .fillColor('black')
-               .text('Sistem Kontrak Digital', { align: 'center' });
-            
-            doc.moveDown(2);
-            
-            // Contract Info Box
-            const infoY = doc.y;
-            doc.rect(50, infoY, 500, 120).stroke();
-            
-            doc.fontSize(12)
-               .font('Helvetica-Bold')
-               .text('INFORMASI KONTRAK', 60, infoY + 10);
-            
-            doc.fontSize(10)
-               .font('Helvetica')
-               .text(`Nomor: ${contract.number}`, 60, infoY + 30)
-               .text(`Judul: ${contract.title}`, 60, infoY + 45)
-               .text(`Klien: ${contract.client_name}`, 60, infoY + 60)
-               .text(`Email: ${contract.client_email}`, 60, infoY + 75)
-               .text(`Nilai: ${formatCurrency(contract.amount)}`, 300, infoY + 30)
-               .text(`Status: ${contract.status.toUpperCase()}`, 300, infoY + 45)
-               .text(`Dibuat: ${new Date(contract.createdAt).toLocaleDateString('id-ID')}`, 300, infoY + 60);
+            // Simple PDF content
+            doc.fontSize(20).text('TradeStation Digital Contract', { align: 'center' });
+            doc.moveDown();
+            doc.fontSize(12).text(`Contract Number: ${contract.number}`);
+            doc.text(`Client: ${contract.client_name}`);
+            doc.text(`Amount: ${formatCurrency(contract.amount)}`);
+            doc.text(`Status: ${contract.status}`);
             
             if (contract.signed_at) {
-                doc.text(`Ditandatangani: ${new Date(contract.signed_at).toLocaleDateString('id-ID')}`, 300, infoY + 75);
-            }
-            
-            doc.y = infoY + 130;
-            doc.moveDown(1);
-
-            // Process content
-            let content = contract.content || getDefaultContractTemplate();
-            
-            // Replace variables
-            const replacements = {
-                '{{CONTRACT_NUMBER}}': contract.number,
-                '{{CONTRACT_DATE}}': new Date(contract.createdAt).toLocaleDateString('id-ID'),
-                '{{CLIENT_NAME}}': contract.client_name,
-                '{{CLIENT_EMAIL}}': contract.client_email,
-                '{{CLIENT_PHONE}}': contract.client_phone || '',
-                '{{CLIENT_ADDRESS}}': contract.client_address || '',
-                '{{AMOUNT}}': formatCurrency(contract.amount),
-                '{{SIGNED_DATE}}': contract.signed_at ? 
-                    new Date(contract.signed_at).toLocaleDateString('id-ID') : 
-                    '[Belum Ditandatangani]'
-            };
-
-            // Replace variables
-            Object.keys(replacements).forEach(key => {
-                const regex = new RegExp(key.replace(/[{}]/g, '\\$&'), 'g');
-                content = content.replace(regex, replacements[key]);
-            });
-
-            // Process content line by line
-            const lines = content.split('\n');
-            
-            for (const line of lines) {
-                const trimmedLine = line.trim();
-                
-                if (doc.y > 750) {
-                    doc.addPage();
-                }
-                
-                if (!trimmedLine) {
-                    doc.moveDown(0.3);
-                    continue;
-                }
-                
-                if (trimmedLine.startsWith('# ')) {
-                    doc.fontSize(14)
-                       .font('Helvetica-Bold')
-                       .text(trimmedLine.substring(2), { align: 'center' });
-                    doc.moveDown(0.5);
-                } else if (trimmedLine.startsWith('## ')) {
-                    doc.fontSize(12)
-                       .font('Helvetica-Bold')
-                       .fillColor('#0066CC')
-                       .text(trimmedLine.substring(3));
-                    doc.fillColor('black');
-                    doc.moveDown(0.3);
-                } else if (trimmedLine.startsWith('### ')) {
-                    doc.fontSize(11)
-                       .font('Helvetica-Bold')
-                       .text(trimmedLine.substring(4));
-                    doc.moveDown(0.3);
-                } else if (trimmedLine.startsWith('**') && trimmedLine.endsWith('**')) {
-                    const text = trimmedLine.replace(/\*\*/g, '');
-                    doc.fontSize(10)
-                       .font('Helvetica-Bold')
-                       .text(text);
-                    doc.moveDown(0.2);
-                } else if (trimmedLine === '---') {
-                    doc.moveDown(0.3);
-                    doc.moveTo(50, doc.y)
-                       .lineTo(550, doc.y)
-                       .stroke();
-                    doc.moveDown(0.3);
-                } else {
-                    doc.fontSize(10)
-                       .font('Helvetica')
-                       .text(trimmedLine, { align: 'justify' });
-                    doc.moveDown(0.2);
-                }
-            }
-
-            // Signature section
-            if (contract.signature_data && contract.signed_at) {
-                doc.addPage();
-                
-                doc.fontSize(16)
-                   .font('Helvetica-Bold')
-                   .fillColor('#008000')
-                   .text('✓ KONTRAK TELAH DITANDATANGANI', { align: 'center' });
-                
-                doc.fillColor('black');
-                doc.moveDown(2);
-                
-                doc.fontSize(12)
-                   .text(`Ditandatangani oleh: ${contract.client_name}`, { align: 'center' });
-                doc.text(`Pada tanggal: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, { align: 'center' });
-                
-                doc.moveDown(2);
-                doc.text('Tanda Tangan Digital Tersimpan dalam Sistem', { align: 'center' });
-            }
-
-            // Footer
-            const totalPages = doc.bufferedPageRange().count;
-            for (let i = 0; i < totalPages; i++) {
-                doc.switchToPage(i);
-                doc.fontSize(8)
-                   .text(`Halaman ${i + 1} dari ${totalPages} - TradeStation Digital - ${new Date().toLocaleString('id-ID')}`,
-                         50, 780, { align: 'center' });
+                doc.moveDown();
+                doc.fontSize(14).text('✓ DIGITALLY SIGNED', { align: 'center' });
+                doc.fontSize(10).text(`Signed on: ${new Date(contract.signed_at).toLocaleString('id-ID')}`, { align: 'center' });
             }
 
             doc.end();
-
         } catch (error) {
-            console.error('❌ PDF generation error:', error);
             reject(error);
         }
     });
 }
-
-// =====================
-// MIDDLEWARE SETUP
-// =====================
-
-// **PERBAIKAN CORS - Setup yang lebih robust**
-app.use((req, res, next) => {
-    const origin = req.headers.origin;
-    
-    console.log('🌐 Request from origin:', origin);
-    console.log('🔍 Headers:', {
-        origin: req.headers.origin,
-        referer: req.headers.referer,
-        host: req.headers.host,
-        userAgent: req.headers['user-agent']?.substring(0, 50)
-    });
-
-    // Set CORS headers manually untuk kontrol penuh
-    res.header('Access-Control-Allow-Origin', origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-File-Name');
-    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
-    res.header('Access-Control-Max-Age', '86400');
-
-    // Handle preflight
-    if (req.method === 'OPTIONS') {
-        console.log('✅ Handling OPTIONS preflight');
-        return res.sendStatus(200);
-    }
-
-    next();
-});
-
-// Helmet dengan config yang tidak conflict dengan CORS
-app.use(helmet({ 
-    crossOriginEmbedderPolicy: false,
-    contentSecurityPolicy: false,
-    crossOriginResourcePolicy: false
-}));
-
-// Body parsers
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// Rate limiting yang lebih permisif untuk testing
-const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 300, // Increase limit for testing
-    message: { error: 'Terlalu banyak permintaan, coba lagi nanti.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: (req) => {
-        // Skip rate limiting untuk health check dan test endpoints
-        return req.path === '/api/health' || req.path === '/api/test';
-    }
-});
-app.use('/api/', limiter);
 
 // Auth middleware
 const authenticateAdmin = async (req, res, next) => {
@@ -430,11 +293,7 @@ async function connectDatabase() {
                 email: 'admin@kontrakdigital.com',
                 password: hashedPassword
             });
-            console.log('✅ Default admin created:');
-            console.log('   Email: admin@kontrakdigital.com');
-            console.log('   Password: admin123');
-        } else {
-            console.log('✅ Admin account exists: admin@kontrakdigital.com');
+            console.log('✅ Default admin created');
         }
         
     } catch (error) {
@@ -447,144 +306,73 @@ async function connectDatabase() {
 // ROUTES
 // =====================
 
-// Health check dengan CORS info
+// Root endpoint dengan debug info
+app.get('/', (req, res) => {
+    res.json({
+        message: '🚀 TradeStation Backend API v3.2.2',
+        status: 'Running',
+        timestamp: new Date().toISOString(),
+        database: dbConnected ? 'Connected' : 'Disconnected',
+        cors: 'FULLY ENABLED - ALL ORIGINS ALLOWED',
+        debug: {
+            origin: req.headers.origin || 'none',
+            userAgent: req.headers['user-agent']?.substring(0, 50) || 'none',
+            method: req.method
+        }
+    });
+});
+
+// Health check dengan extensive CORS info
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
         database: dbConnected ? 'connected' : 'disconnected',
-        version: '3.2.0',
-        environment: process.env.NODE_ENV || 'development',
+        version: '3.2.2-aggressive-cors',
         cors: {
-            origin: req.headers.origin,
-            allowed: 'All origins allowed',
-            credentials: 'true'
+            enabled: true,
+            policy: 'Allow All Origins',
+            origin: req.headers.origin || 'none',
+            credentials: true,
+            methods: 'ALL',
+            headers: 'ALL'
         },
-        railway: {
-            domain: process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost',
-            deployment_id: process.env.RAILWAY_DEPLOYMENT_ID || 'local'
+        request: {
+            method: req.method,
+            path: req.path,
+            origin: req.headers.origin,
+            userAgent: req.headers['user-agent']?.substring(0, 100)
         }
     });
 });
 
-// Test endpoint khusus untuk CORS
+// Test endpoint
 app.get('/api/test', (req, res) => {
-    console.log('🧪 Test endpoint called from:', req.headers.origin);
+    console.log('🧪 Test endpoint hit from:', req.headers.origin);
     res.json({
         message: 'CORS Test Berhasil! 🎉',
         timestamp: new Date().toISOString(),
-        origin: req.headers.origin,
-        cors: 'OK',
-        status: 'success'
+        origin: req.headers.origin || 'none',
+        cors: 'SUCCESS',
+        debug: {
+            method: req.method,
+            headers: Object.keys(req.headers),
+            allOriginsAllowed: true
+        }
     });
 });
 
-// Test POST untuk login
-app.post('/api/test', (req, res) => {
-    console.log('🧪 POST Test endpoint called from:', req.headers.origin);
-    res.json({
-        message: 'POST Test Berhasil! 🎉',
-        data: req.body,
-        origin: req.headers.origin,
-        cors: 'OK'
-    });
-});
-
-// Root endpoint
-app.get('/', (req, res) => {
-    res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>TradeStation Backend API</title>
-            <style>
-                body { font-family: Arial; margin: 40px; background: #f5f5f5; }
-                .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                .status { padding: 20px; background: #e8f5e8; border-radius: 8px; margin: 20px 0; }
-                .error { background: #ffeaea; }
-                .warning { background: #fff3cd; }
-                h1 { color: #0066cc; }
-                code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; }
-                .endpoint { margin: 10px 0; padding: 10px; background: #f8f9fa; border-left: 3px solid #0066cc; }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <h1>🚀 TradeStation Backend API</h1>
-                
-                <div class="status">
-                    <h3>Status Server</h3>
-                    <p><strong>Status:</strong> Running ✅</p>
-                    <p><strong>Version:</strong> 3.2.0</p>
-                    <p><strong>Time:</strong> ${new Date().toISOString()}</p>
-                    <p><strong>Database:</strong> ${dbConnected ? 'Connected ✅' : 'Disconnected ❌'}</p>
-                    <p><strong>CORS:</strong> Fully Enabled for All Origins ✅</p>
-                </div>
-                
-                <h3>🔗 Test Endpoints:</h3>
-                <div class="endpoint">
-                    <strong>GET</strong> <code><a href="/api/health">/api/health</a></code> - Health check dengan info CORS
-                </div>
-                <div class="endpoint">
-                    <strong>GET</strong> <code><a href="/api/test">/api/test</a></code> - Test CORS connection
-                </div>
-                <div class="endpoint">
-                    <strong>POST</strong> <code>/api/test</code> - Test POST dengan CORS
-                </div>
-                
-                <h3>🔐 API Endpoints:</h3>
-                <div class="endpoint">
-                    <strong>POST</strong> <code>/api/admin/login</code> - Admin login
-                </div>
-                <div class="endpoint">
-                    <strong>POST</strong> <code>/api/user/login</code> - User login dengan nomor kontrak
-                </div>
-                <div class="endpoint">
-                    <strong>GET</strong> <code>/api/admin/contracts</code> - List kontrak (perlu auth)
-                </div>
-                <div class="endpoint">
-                    <strong>POST</strong> <code>/api/admin/contracts</code> - Buat kontrak baru (perlu auth)
-                </div>
-                
-                <h3>👤 Login Credentials:</h3>
-                <div class="status warning">
-                    <p><strong>Admin Login:</strong></p>
-                    <p>Email: <code>admin@kontrakdigital.com</code></p>
-                    <p>Password: <code>admin123</code></p>
-                    
-                    <p><strong>User Login:</strong></p>
-                    <p>Nomor Kontrak: <code>[Dari Admin]</code></p>
-                    <p>Password: <code>${FIXED_PASSWORD}</code></p>
-                </div>
-                
-                <h3>🌐 CORS Configuration:</h3>
-                <div class="status">
-                    <p>✅ <strong>kontrakdigital.com</strong> - Allowed</p>
-                    <p>✅ <strong>All Railway domains</strong> - Allowed</p>
-                    <p>✅ <strong>Localhost/127.0.0.1</strong> - Allowed</p>
-                    <p>✅ <strong>All origins with credentials</strong> - Enabled</p>
-                </div>
-            </div>
-        </body>
-        </html>
-    `);
-});
-
-// Admin login
+// Admin login dengan extensive logging
 app.post('/api/admin/login', async (req, res) => {
     try {
         console.log('🔐 Admin login attempt from:', req.headers.origin);
-        console.log('📧 Email:', req.body.email);
+        console.log('📧 Login data:', req.body);
         
         const { email, password } = req.body;
 
         if (!email || !password) {
+            console.log('❌ Missing email or password');
             return res.status(400).json({ error: 'Email dan password harus diisi' });
-        }
-
-        // Check if input looks like contract number
-        if (!email.includes('@') && (email.startsWith('KTR') || email.match(/^[A-Z]{3}\d+/))) {
-            return res.status(400).json({ error: 'Gunakan email admin untuk login admin.' });
         }
 
         const admin = await Admin.findOne({ email: email.toLowerCase() });
@@ -601,7 +389,7 @@ app.post('/api/admin/login', async (req, res) => {
 
         const token = jwt.sign({ adminId: admin._id }, JWT_SECRET, { expiresIn: '24h' });
 
-        console.log('✅ Admin login successful:', admin.name, admin.email);
+        console.log('✅ Admin login successful:', admin.name);
 
         res.json({
             message: 'Login admin berhasil',
@@ -622,40 +410,23 @@ app.post('/api/admin/login', async (req, res) => {
 app.post('/api/user/login', async (req, res) => {
     try {
         console.log('🔐 User login attempt from:', req.headers.origin);
-        console.log('📄 Contract Number:', req.body.contractNumber);
-        
         const { contractNumber, password } = req.body;
 
         if (!contractNumber || !password) {
             return res.status(400).json({ error: 'Nomor kontrak dan password harus diisi' });
         }
 
-        // Check if input looks like email
-        if (contractNumber.includes('@')) {
-            return res.status(400).json({ error: 'Format nomor kontrak tidak valid. Gunakan nomor kontrak yang diberikan admin.' });
-        }
-
-        // Check password
         if (password !== FIXED_PASSWORD) {
-            console.log('❌ Invalid password for contract:', contractNumber);
             return res.status(401).json({ error: 'Password salah. Gunakan password yang diberikan admin.' });
         }
 
-        // Find contract
         const contract = await Contract.findOne({ number: contractNumber });
         if (!contract) {
-            console.log('❌ Contract not found:', contractNumber);
             return res.status(404).json({ error: 'Nomor kontrak tidak ditemukan. Pastikan nomor kontrak benar.' });
         }
 
         if (contract.status !== 'active') {
-            if (contract.status === 'draft') {
-                return res.status(400).json({ error: 'Kontrak belum diaktifkan oleh admin. Hubungi admin Anda.' });
-            } else if (contract.status === 'signed') {
-                return res.status(400).json({ error: 'Kontrak sudah ditandatangani sebelumnya.' });
-            } else {
-                return res.status(400).json({ error: 'Kontrak tidak aktif' });
-            }
+            return res.status(400).json({ error: 'Kontrak belum diaktifkan atau sudah ditandatangani.' });
         }
 
         const token = jwt.sign({ 
@@ -663,7 +434,7 @@ app.post('/api/user/login', async (req, res) => {
             contractNumber: contract.number 
         }, JWT_SECRET, { expiresIn: '24h' });
 
-        console.log('✅ User login successful:', contract.number, contract.client_name);
+        console.log('✅ User login successful:', contract.number);
 
         res.json({
             message: 'Login berhasil',
@@ -700,7 +471,6 @@ app.get('/api/user/contract', async (req, res) => {
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        // Process content
         let content = contract.content || getDefaultContractTemplate();
         
         const replacements = {
@@ -760,7 +530,6 @@ app.post('/api/user/sign', async (req, res) => {
             return res.status(400).json({ error: 'Kontrak sudah ditandatangani' });
         }
 
-        // Update contract
         await Contract.findByIdAndUpdate(contract._id, {
             signature_data: signatureData,
             signed_at: new Date(),
@@ -792,18 +561,12 @@ app.get('/api/user/download', async (req, res) => {
         const decoded = jwt.verify(token, JWT_SECRET);
         const contract = await Contract.findById(decoded.contractId);
 
-        if (!contract) {
-            return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
-        }
-
-        if (!contract.signature_data) {
+        if (!contract || !contract.signature_data) {
             return res.status(400).json({ error: 'Kontrak belum ditandatangani' });
         }
 
-        console.log('📥 Generating PDF for download:', contract.number);
-        
         const pdfBuffer = await generateContractPDF(contract);
-        const filename = `Kontrak_${contract.number}_${contract.client_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+        const filename = `Kontrak_${contract.number}.pdf`;
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
@@ -818,39 +581,14 @@ app.get('/api/user/download', async (req, res) => {
 // Admin routes
 app.get('/api/admin/contracts', authenticateAdmin, async (req, res) => {
     try {
-        const { page = 1, limit = 20, status, search } = req.query;
-        
-        let query = {};
-        if (status) query.status = status;
-        if (search) {
-            query.$or = [
-                { title: { $regex: search, $options: 'i' } },
-                { number: { $regex: search, $options: 'i' } },
-                { client_name: { $regex: search, $options: 'i' } }
-            ];
-        }
-
-        const skip = (parseInt(page) - 1) * parseInt(limit);
-        
-        const contracts = await Contract.find(query)
-            .sort({ createdAt: -1 })
-            .skip(skip)
-            .limit(parseInt(limit));
-        
-        const total = await Contract.countDocuments(query);
+        const contracts = await Contract.find().sort({ createdAt: -1 });
         
         res.json({
             data: contracts.map(contract => ({
                 ...contract.toObject(),
                 formatted_amount: formatCurrency(contract.amount),
                 can_download: contract.signature_data ? true : false
-            })),
-            pagination: {
-                page: parseInt(page),
-                limit: parseInt(limit),
-                total,
-                pages: Math.ceil(total / parseInt(limit))
-            }
+            }))
         });
     } catch (error) {
         console.error('❌ Get contracts error:', error);
@@ -860,16 +598,7 @@ app.get('/api/admin/contracts', authenticateAdmin, async (req, res) => {
 
 app.post('/api/admin/contracts', authenticateAdmin, async (req, res) => {
     try {
-        const { 
-            title, 
-            client_name, 
-            client_email, 
-            client_phone, 
-            client_address, 
-            amount, 
-            content,
-            admin_notes 
-        } = req.body;
+        const { title, client_name, client_email, client_phone, client_address, amount, content, admin_notes } = req.body;
 
         if (!title || !client_name || !client_email) {
             return res.status(400).json({ error: 'Title, nama klien, dan email harus diisi' });
@@ -900,8 +629,7 @@ app.post('/api/admin/contracts', authenticateAdmin, async (req, res) => {
             data: contract,
             userLoginInfo: {
                 contractNumber: contractNumber,
-                password: FIXED_PASSWORD,
-                loginUrl: `${req.protocol}://${req.get('host')}/user-login`
+                password: FIXED_PASSWORD
             }
         });
     } catch (error) {
@@ -910,7 +638,6 @@ app.post('/api/admin/contracts', authenticateAdmin, async (req, res) => {
     }
 });
 
-// Activate contract
 app.post('/api/admin/contracts/:id/activate', authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -922,75 +649,52 @@ app.post('/api/admin/contracts/:id/activate', authenticateAdmin, async (req, res
 
         await Contract.findByIdAndUpdate(id, { status: 'active' });
 
-        console.log('✅ Contract activated:', contract.number);
-
         res.json({
             message: 'Kontrak berhasil diaktifkan',
             userLoginInfo: {
                 contractNumber: contract.number,
-                password: FIXED_PASSWORD,
-                loginUrl: `${req.protocol}://${req.get('host')}/user-login`
+                password: FIXED_PASSWORD
             }
         });
     } catch (error) {
-        console.error('❌ Activate contract error:', error);
         res.status(500).json({ error: 'Gagal mengaktifkan kontrak' });
     }
 });
 
-// Download PDF for admin
 app.get('/api/admin/contracts/:id/download', authenticateAdmin, async (req, res) => {
     try {
-        const { id } = req.params;
-        
-        const contract = await Contract.findById(id);
+        const contract = await Contract.findById(req.params.id);
         if (!contract) {
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        console.log('📥 Admin downloading PDF:', contract.number);
-        
         const pdfBuffer = await generateContractPDF(contract);
-        const filename = `Kontrak_${contract.number}_${contract.client_name.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
+        const filename = `Kontrak_${contract.number}.pdf`;
 
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
         res.send(pdfBuffer);
-
     } catch (error) {
-        console.error('❌ Admin download error:', error);
         res.status(500).json({ error: 'Gagal mengunduh kontrak' });
     }
 });
 
-// Delete contract
 app.delete('/api/admin/contracts/:id', authenticateAdmin, async (req, res) => {
     try {
-        const { id } = req.params;
-        
-        const contract = await Contract.findByIdAndDelete(id);
+        const contract = await Contract.findByIdAndDelete(req.params.id);
         if (!contract) {
             return res.status(404).json({ error: 'Kontrak tidak ditemukan' });
         }
 
-        console.log('🗑️ Contract deleted:', contract.number);
         res.json({ message: 'Kontrak berhasil dihapus' });
     } catch (error) {
-        console.error('❌ Delete contract error:', error);
         res.status(500).json({ error: 'Gagal menghapus kontrak' });
     }
 });
 
-// Dashboard stats
 app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
     try {
-        const [
-            totalContracts,
-            draftContracts,
-            activeContracts,
-            signedContracts,
-            totalValue
-        ] = await Promise.all([
+        const [totalContracts, draftContracts, activeContracts, signedContracts, totalValue] = await Promise.all([
             Contract.countDocuments(),
             Contract.countDocuments({ status: 'draft' }),
             Contract.countDocuments({ status: 'active' }),
@@ -1008,24 +712,27 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('❌ Stats error:', error);
         res.status(500).json({ error: 'Gagal mendapatkan statistik' });
     }
 });
 
-// Error handling
+// Catch-all error handler
 app.use((req, res) => {
     console.log('❌ 404 - Endpoint not found:', req.method, req.path);
     res.status(404).json({ 
         error: 'Endpoint tidak ditemukan',
         method: req.method,
-        path: req.path
+        path: req.path,
+        timestamp: new Date().toISOString()
     });
 });
 
 app.use((error, req, res, next) => {
     console.error('❌ Server error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ 
+        error: 'Internal server error',
+        timestamp: new Date().toISOString()
+    });
 });
 
 // =====================
@@ -1037,23 +744,13 @@ async function startServer() {
         await connectDatabase();
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 TradeStation Kontrak Digital v3.2.0 - CORS FIXED`);
+            console.log(`🚀 TradeStation v3.2.2 - AGGRESSIVE CORS FIX`);
             console.log(`📱 Server running on port ${PORT}`);
-            console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-            
-            if (process.env.RAILWAY_PUBLIC_DOMAIN) {
-                console.log(`🔗 Railway URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
-                console.log(`🔗 Health Check: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`);
-                console.log(`🔗 CORS Test: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/test`);
-            } else {
-                console.log(`🔗 Local URL: http://localhost:${PORT}/`);
-            }
-            
             console.log(`💾 Database: ${dbConnected ? 'Connected ✅' : 'Disconnected ❌'}`);
+            console.log(`🔒 CORS: FULLY DISABLED - ALL ORIGINS ALLOWED ✅`);
             console.log(`👤 Admin: admin@kontrakdigital.com / admin123`);
             console.log(`📝 User Password: ${FIXED_PASSWORD}`);
-            console.log(`🔒 CORS: Universal Allow - ALL ORIGINS ✅`);
-            console.log(`✅ Ready to serve kontrakdigital.com!`);
+            console.log(`✅ Ready for kontrakdigital.com!`);
         });
 
     } catch (error) {
