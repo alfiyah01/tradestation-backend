@@ -25,37 +25,6 @@ const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rizalitam10:Yusriz
 const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secret_key_2024_secure';
 const FIXED_PASSWORD = process.env.FIXED_PASSWORD || 'kontrakdigital2025';
 
-// Railway and domain configuration
-const RAILWAY_DOMAIN = process.env.RAILWAY_PUBLIC_DOMAIN;
-const FRONTEND_URL = process.env.FRONTEND_URL;
-
-// ✅ FIXED: Enhanced CORS configuration
-const allowedOrigins = [
-    // Production domains
-    'https://tradestation-backend-production.up.railway.app',
-    'https://kontrakdigital.com',
-    'http://kontrakdigital.com',
-    'https://www.kontrakdigital.com',
-    'http://www.kontrakdigital.com',
-    
-    // Railway domains
-    RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null,
-    
-    // Environment variables
-    FRONTEND_URL,
-    process.env.FRONTEND_URL,
-    
-    // Development (only if needed for testing)
-    ...(process.env.NODE_ENV !== 'production' ? [
-        'http://localhost:3000',
-        'http://localhost:5000',
-        'http://localhost:8080',
-        'http://127.0.0.1:3000',
-        'http://127.0.0.1:5000',
-        'http://127.0.0.1:8080',
-    ] : []),
-].filter(Boolean);
-
 let dbConnected = false;
 
 // =====================
@@ -360,83 +329,60 @@ async function generateContractPDF(contract) {
 }
 
 // =====================
-// MIDDLEWARE
+// MIDDLEWARE SETUP
 // =====================
 
-// ✅ FIXED: Simplified helmet configuration
+// **PERBAIKAN CORS - Setup yang lebih robust**
+app.use((req, res, next) => {
+    const origin = req.headers.origin;
+    
+    console.log('🌐 Request from origin:', origin);
+    console.log('🔍 Headers:', {
+        origin: req.headers.origin,
+        referer: req.headers.referer,
+        host: req.headers.host,
+        userAgent: req.headers['user-agent']?.substring(0, 50)
+    });
+
+    // Set CORS headers manually untuk kontrol penuh
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, X-File-Name');
+    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Range');
+    res.header('Access-Control-Max-Age', '86400');
+
+    // Handle preflight
+    if (req.method === 'OPTIONS') {
+        console.log('✅ Handling OPTIONS preflight');
+        return res.sendStatus(200);
+    }
+
+    next();
+});
+
+// Helmet dengan config yang tidak conflict dengan CORS
 app.use(helmet({ 
     crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: false,
-    crossOriginResourcePolicy: { policy: "cross-origin" }
+    crossOriginResourcePolicy: false
 }));
 
-// ✅ FIXED: Enhanced CORS configuration with better origin handling
-app.use(cors({
-    origin: function (origin, callback) {
-        console.log('🌐 CORS Request from origin:', origin || 'no-origin');
-        
-        // Allow requests with no origin (mobile apps, postman, curl, etc)
-        if (!origin) {
-            console.log('✅ No origin - allowing (mobile/postman/curl)');
-            return callback(null, true);
-        }
-        
-        // Check if origin is in allowed list
-        if (allowedOrigins.includes(origin)) {
-            console.log('✅ Origin in allowlist:', origin);
-            return callback(null, true);
-        }
-        
-        // Allow Railway domains
-        if (origin.includes('.up.railway.app')) {
-            console.log('✅ Railway domain allowed:', origin);
-            return callback(null, true);
-        }
-        
-        // Allow kontrakdigital.com and its subdomains
-        if (origin.includes('kontrakdigital.com')) {
-            console.log('✅ KontrakDigital domain allowed:', origin);
-            return callback(null, true);
-        }
-        
-        // For development: Allow localhost/127.0.0.1 origins
-        if (process.env.NODE_ENV !== 'production' && 
-            (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
-            console.log('✅ Development origin allowed:', origin);
-            return callback(null, true);
-        }
-        
-        console.log('⚠️ Origin not explicitly allowed but allowing for maximum compatibility:', origin);
-        return callback(null, true); // Allow all for maximum compatibility
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-    allowedHeaders: [
-        'Content-Type', 
-        'Authorization', 
-        'X-Requested-With', 
-        'Accept',
-        'Origin',
-        'Cache-Control',
-        'X-File-Name',
-        'X-API-Key'
-    ],
-    exposedHeaders: ['Content-Length', 'Content-Range', 'Content-Disposition'],
-    maxAge: 86400, // 24 hours
-    optionsSuccessStatus: 200,
-    preflightContinue: false
-}));
-
+// Body parsers
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
-// Rate limiting with more lenient settings
+// Rate limiting yang lebih permisif untuk testing
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200, // Increased from 100
+    max: 300, // Increase limit for testing
     message: { error: 'Terlalu banyak permintaan, coba lagi nanti.' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: (req) => {
+        // Skip rate limiting untuk health check dan test endpoints
+        return req.path === '/api/health' || req.path === '/api/test';
+    }
 });
 app.use('/api/', limiter);
 
@@ -471,14 +417,7 @@ const authenticateAdmin = async (req, res, next) => {
 async function connectDatabase() {
     try {
         console.log('🔗 Connecting to MongoDB...');
-        
-        await mongoose.connect(MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 10000,
-            socketTimeoutMS: 45000,
-        });
-        
+        await mongoose.connect(MONGODB_URI);
         dbConnected = true;
         console.log('✅ MongoDB connected successfully');
         
@@ -501,7 +440,6 @@ async function connectDatabase() {
     } catch (error) {
         console.error('❌ MongoDB connection error:', error);
         dbConnected = false;
-        // Don't exit, let the app handle it gracefully
     }
 }
 
@@ -509,68 +447,155 @@ async function connectDatabase() {
 // ROUTES
 // =====================
 
-// ✅ FIXED: Serve static files properly
-app.use(express.static('public', {
-    maxAge: '1d',
-    etag: false
-}));
-
-// ✅ FIXED: Enhanced health check
+// Health check dengan CORS info
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
         database: dbConnected ? 'connected' : 'disconnected',
-        version: '3.1.0',
+        version: '3.2.0',
         environment: process.env.NODE_ENV || 'development',
+        cors: {
+            origin: req.headers.origin,
+            allowed: 'All origins allowed',
+            credentials: 'true'
+        },
         railway: {
             domain: process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost',
             deployment_id: process.env.RAILWAY_DEPLOYMENT_ID || 'local'
-        },
-        cors: {
-            allowedOrigins: allowedOrigins.length,
-            origins: allowedOrigins
         }
     });
 });
 
-// ✅ FIXED: Root endpoint - serve frontend from backend
-app.get('/', (req, res) => {
-    const indexPath = require('path').join(__dirname, 'index.html');
-    res.sendFile(indexPath, (err) => {
-        if (err) {
-            console.error('Error serving index.html:', err);
-            res.status(500).send(`
-                <h1>TradeStation Digital</h1>
-                <p>Sistem Kontrak Digital</p>
-                <p>Backend API is running. Please check if index.html exists.</p>
-                <p>API Health: <a href="/api/health">/api/health</a></p>
-            `);
-        }
+// Test endpoint khusus untuk CORS
+app.get('/api/test', (req, res) => {
+    console.log('🧪 Test endpoint called from:', req.headers.origin);
+    res.json({
+        message: 'CORS Test Berhasil! 🎉',
+        timestamp: new Date().toISOString(),
+        origin: req.headers.origin,
+        cors: 'OK',
+        status: 'success'
     });
+});
+
+// Test POST untuk login
+app.post('/api/test', (req, res) => {
+    console.log('🧪 POST Test endpoint called from:', req.headers.origin);
+    res.json({
+        message: 'POST Test Berhasil! 🎉',
+        data: req.body,
+        origin: req.headers.origin,
+        cors: 'OK'
+    });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+    res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>TradeStation Backend API</title>
+            <style>
+                body { font-family: Arial; margin: 40px; background: #f5f5f5; }
+                .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+                .status { padding: 20px; background: #e8f5e8; border-radius: 8px; margin: 20px 0; }
+                .error { background: #ffeaea; }
+                .warning { background: #fff3cd; }
+                h1 { color: #0066cc; }
+                code { background: #f0f0f0; padding: 2px 5px; border-radius: 3px; }
+                .endpoint { margin: 10px 0; padding: 10px; background: #f8f9fa; border-left: 3px solid #0066cc; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>🚀 TradeStation Backend API</h1>
+                
+                <div class="status">
+                    <h3>Status Server</h3>
+                    <p><strong>Status:</strong> Running ✅</p>
+                    <p><strong>Version:</strong> 3.2.0</p>
+                    <p><strong>Time:</strong> ${new Date().toISOString()}</p>
+                    <p><strong>Database:</strong> ${dbConnected ? 'Connected ✅' : 'Disconnected ❌'}</p>
+                    <p><strong>CORS:</strong> Fully Enabled for All Origins ✅</p>
+                </div>
+                
+                <h3>🔗 Test Endpoints:</h3>
+                <div class="endpoint">
+                    <strong>GET</strong> <code><a href="/api/health">/api/health</a></code> - Health check dengan info CORS
+                </div>
+                <div class="endpoint">
+                    <strong>GET</strong> <code><a href="/api/test">/api/test</a></code> - Test CORS connection
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/test</code> - Test POST dengan CORS
+                </div>
+                
+                <h3>🔐 API Endpoints:</h3>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/admin/login</code> - Admin login
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/user/login</code> - User login dengan nomor kontrak
+                </div>
+                <div class="endpoint">
+                    <strong>GET</strong> <code>/api/admin/contracts</code> - List kontrak (perlu auth)
+                </div>
+                <div class="endpoint">
+                    <strong>POST</strong> <code>/api/admin/contracts</code> - Buat kontrak baru (perlu auth)
+                </div>
+                
+                <h3>👤 Login Credentials:</h3>
+                <div class="status warning">
+                    <p><strong>Admin Login:</strong></p>
+                    <p>Email: <code>admin@kontrakdigital.com</code></p>
+                    <p>Password: <code>admin123</code></p>
+                    
+                    <p><strong>User Login:</strong></p>
+                    <p>Nomor Kontrak: <code>[Dari Admin]</code></p>
+                    <p>Password: <code>${FIXED_PASSWORD}</code></p>
+                </div>
+                
+                <h3>🌐 CORS Configuration:</h3>
+                <div class="status">
+                    <p>✅ <strong>kontrakdigital.com</strong> - Allowed</p>
+                    <p>✅ <strong>All Railway domains</strong> - Allowed</p>
+                    <p>✅ <strong>Localhost/127.0.0.1</strong> - Allowed</p>
+                    <p>✅ <strong>All origins with credentials</strong> - Enabled</p>
+                </div>
+            </div>
+        </body>
+        </html>
+    `);
 });
 
 // Admin login
 app.post('/api/admin/login', async (req, res) => {
     try {
+        console.log('🔐 Admin login attempt from:', req.headers.origin);
+        console.log('📧 Email:', req.body.email);
+        
         const { email, password } = req.body;
 
         if (!email || !password) {
             return res.status(400).json({ error: 'Email dan password harus diisi' });
         }
 
-        // Check if input looks like contract number (probably user trying wrong endpoint)
+        // Check if input looks like contract number
         if (!email.includes('@') && (email.startsWith('KTR') || email.match(/^[A-Z]{3}\d+/))) {
             return res.status(400).json({ error: 'Gunakan email admin untuk login admin.' });
         }
 
         const admin = await Admin.findOne({ email: email.toLowerCase() });
         if (!admin) {
+            console.log('❌ Admin not found:', email);
             return res.status(401).json({ error: 'Email atau password admin salah' });
         }
 
         const validPassword = await bcrypt.compare(password, admin.password);
         if (!validPassword) {
+            console.log('❌ Invalid password for:', email);
             return res.status(401).json({ error: 'Email atau password admin salah' });
         }
 
@@ -588,33 +613,38 @@ app.post('/api/admin/login', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Admin login error:', error);
+        console.error('❌ Admin login error:', error);
         res.status(500).json({ error: 'Login admin gagal. Silakan coba lagi.' });
     }
 });
 
-// User login dengan nomor kontrak
+// User login
 app.post('/api/user/login', async (req, res) => {
     try {
+        console.log('🔐 User login attempt from:', req.headers.origin);
+        console.log('📄 Contract Number:', req.body.contractNumber);
+        
         const { contractNumber, password } = req.body;
 
         if (!contractNumber || !password) {
             return res.status(400).json({ error: 'Nomor kontrak dan password harus diisi' });
         }
 
-        // Check if input looks like email (probably admin trying wrong endpoint)
+        // Check if input looks like email
         if (contractNumber.includes('@')) {
             return res.status(400).json({ error: 'Format nomor kontrak tidak valid. Gunakan nomor kontrak yang diberikan admin.' });
         }
 
         // Check password
         if (password !== FIXED_PASSWORD) {
+            console.log('❌ Invalid password for contract:', contractNumber);
             return res.status(401).json({ error: 'Password salah. Gunakan password yang diberikan admin.' });
         }
 
         // Find contract
         const contract = await Contract.findOne({ number: contractNumber });
         if (!contract) {
+            console.log('❌ Contract not found:', contractNumber);
             return res.status(404).json({ error: 'Nomor kontrak tidak ditemukan. Pastikan nomor kontrak benar.' });
         }
 
@@ -648,7 +678,7 @@ app.post('/api/user/login', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('User login error:', error);
+        console.error('❌ User login error:', error);
         res.status(500).json({ error: 'Login gagal. Silakan coba lagi.' });
     }
 });
@@ -699,7 +729,7 @@ app.get('/api/user/contract', async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get contract error:', error);
+        console.error('❌ Get contract error:', error);
         res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
     }
 });
@@ -744,7 +774,7 @@ app.post('/api/user/sign', async (req, res) => {
             downloadUrl: `/api/user/download`
         });
     } catch (error) {
-        console.error('Sign contract error:', error);
+        console.error('❌ Sign contract error:', error);
         res.status(500).json({ error: 'Gagal menandatangani kontrak' });
     }
 });
@@ -780,7 +810,7 @@ app.get('/api/user/download', async (req, res) => {
         res.send(pdfBuffer);
 
     } catch (error) {
-        console.error('Download error:', error);
+        console.error('❌ Download error:', error);
         res.status(500).json({ error: 'Gagal mengunduh kontrak' });
     }
 });
@@ -823,7 +853,7 @@ app.get('/api/admin/contracts', authenticateAdmin, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Get contracts error:', error);
+        console.error('❌ Get contracts error:', error);
         res.status(500).json({ error: 'Gagal mendapatkan kontrak' });
     }
 });
@@ -871,16 +901,16 @@ app.post('/api/admin/contracts', authenticateAdmin, async (req, res) => {
             userLoginInfo: {
                 contractNumber: contractNumber,
                 password: FIXED_PASSWORD,
-                loginUrl: `${req.protocol}://${req.get('host')}/`
+                loginUrl: `${req.protocol}://${req.get('host')}/user-login`
             }
         });
     } catch (error) {
-        console.error('Create contract error:', error);
+        console.error('❌ Create contract error:', error);
         res.status(500).json({ error: 'Gagal membuat kontrak' });
     }
 });
 
-// Activate contract (send to user)
+// Activate contract
 app.post('/api/admin/contracts/:id/activate', authenticateAdmin, async (req, res) => {
     try {
         const { id } = req.params;
@@ -892,16 +922,18 @@ app.post('/api/admin/contracts/:id/activate', authenticateAdmin, async (req, res
 
         await Contract.findByIdAndUpdate(id, { status: 'active' });
 
+        console.log('✅ Contract activated:', contract.number);
+
         res.json({
             message: 'Kontrak berhasil diaktifkan',
             userLoginInfo: {
                 contractNumber: contract.number,
                 password: FIXED_PASSWORD,
-                loginUrl: `${req.protocol}://${req.get('host')}/`
+                loginUrl: `${req.protocol}://${req.get('host')}/user-login`
             }
         });
     } catch (error) {
-        console.error('Activate contract error:', error);
+        console.error('❌ Activate contract error:', error);
         res.status(500).json({ error: 'Gagal mengaktifkan kontrak' });
     }
 });
@@ -926,7 +958,7 @@ app.get('/api/admin/contracts/:id/download', authenticateAdmin, async (req, res)
         res.send(pdfBuffer);
 
     } catch (error) {
-        console.error('Admin download error:', error);
+        console.error('❌ Admin download error:', error);
         res.status(500).json({ error: 'Gagal mengunduh kontrak' });
     }
 });
@@ -944,7 +976,7 @@ app.delete('/api/admin/contracts/:id', authenticateAdmin, async (req, res) => {
         console.log('🗑️ Contract deleted:', contract.number);
         res.json({ message: 'Kontrak berhasil dihapus' });
     } catch (error) {
-        console.error('Delete contract error:', error);
+        console.error('❌ Delete contract error:', error);
         res.status(500).json({ error: 'Gagal menghapus kontrak' });
     }
 });
@@ -976,27 +1008,23 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
             }
         });
     } catch (error) {
-        console.error('Stats error:', error);
+        console.error('❌ Stats error:', error);
         res.status(500).json({ error: 'Gagal mendapatkan statistik' });
     }
 });
 
-// ✅ NEW: API endpoint to get frontend configuration
-app.get('/api/config', (req, res) => {
-    res.json({
-        apiUrl: `${req.protocol}://${req.get('host')}/api`,
-        version: '3.1.0',
-        environment: process.env.NODE_ENV || 'development'
+// Error handling
+app.use((req, res) => {
+    console.log('❌ 404 - Endpoint not found:', req.method, req.path);
+    res.status(404).json({ 
+        error: 'Endpoint tidak ditemukan',
+        method: req.method,
+        path: req.path
     });
 });
 
-// Error handling
-app.use((req, res) => {
-    res.status(404).json({ error: 'Endpoint tidak ditemukan' });
-});
-
 app.use((error, req, res, next) => {
-    console.error('Server error:', error);
+    console.error('❌ Server error:', error);
     res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -1009,26 +1037,23 @@ async function startServer() {
         await connectDatabase();
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 TradeStation Kontrak Digital v3.1 - FIXED VERSION`);
+            console.log(`🚀 TradeStation Kontrak Digital v3.2.0 - CORS FIXED`);
             console.log(`📱 Server running on port ${PORT}`);
             console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
             
             if (process.env.RAILWAY_PUBLIC_DOMAIN) {
                 console.log(`🔗 Railway URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
-                console.log(`🔗 App: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/`);
-                console.log(`🔗 Health: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`);
-                console.log(`🔗 Config: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/config`);
+                console.log(`🔗 Health Check: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`);
+                console.log(`🔗 CORS Test: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/test`);
             } else {
                 console.log(`🔗 Local URL: http://localhost:${PORT}/`);
-                console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
             }
             
             console.log(`💾 Database: ${dbConnected ? 'Connected ✅' : 'Disconnected ❌'}`);
-            console.log(`👤 Admin Login: admin@kontrakdigital.com / admin123`);
-            console.log(`📝 User Login: [Nomor Kontrak] / ${FIXED_PASSWORD}`);
-            console.log(`🔒 CORS Origins: ${allowedOrigins.length} configured`);
-            console.log(`✅ CORS Fixed for kontrakdigital.com domain!`);
-            console.log(`✅ Ready to serve!`);
+            console.log(`👤 Admin: admin@kontrakdigital.com / admin123`);
+            console.log(`📝 User Password: ${FIXED_PASSWORD}`);
+            console.log(`🔒 CORS: Universal Allow - ALL ORIGINS ✅`);
+            console.log(`✅ Ready to serve kontrakdigital.com!`);
         });
 
     } catch (error) {
