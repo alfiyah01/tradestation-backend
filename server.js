@@ -30,12 +30,19 @@ const RAILWAY_DOMAIN = process.env.RAILWAY_PUBLIC_DOMAIN;
 const FRONTEND_URL = process.env.FRONTEND_URL || 
                     (RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : 'http://localhost:3000');
 
+// Railway production - simplified CORS
 const allowedOrigins = [
-    'http://localhost:3000',
-    'http://localhost:5000',
-    'http://localhost:8080',
-    'https://kontrak-production.up.railway.app',
-    'https://kontrakdigital.com',
+    // Production Railway domain
+    'https://tradestation-backend-production.up.railway.app',
+    
+    // Development (only if needed for testing)
+    ...(process.env.NODE_ENV !== 'production' ? [
+        'http://localhost:3000',
+        'http://localhost:5000',
+        'http://localhost:8080',
+    ] : []),
+    
+    // Environment variables
     FRONTEND_URL,
     RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null,
     process.env.FRONTEND_URL
@@ -351,13 +358,49 @@ async function generateContractPDF(contract) {
 app.use(helmet({ crossOriginEmbedderPolicy: false }));
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin) || 
-            (origin && (origin.includes('localhost') || origin.includes('127.0.0.1')))) {
+        console.log('🌐 CORS Request from origin:', origin || 'no-origin');
+        
+        // Allow requests with no origin (mobile apps, postman, etc)
+        if (!origin) {
+            console.log('✅ No origin - allowing');
             return callback(null, true);
         }
-        return callback(null, true); // Allow all for development
+        
+        // Check if origin is in allowed list
+        if (allowedOrigins.includes(origin)) {
+            console.log('✅ Origin in allowlist:', origin);
+            return callback(null, true);
+        }
+        
+        // Allow Railway domains
+        if (origin.includes('.up.railway.app')) {
+            console.log('✅ Railway domain allowed:', origin);
+            return callback(null, true);
+        }
+        
+        // For development: Allow localhost/127.0.0.1 origins
+        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+            console.log('✅ Development origin allowed:', origin);
+            return callback(null, true);
+        }
+        
+        console.log('⚠️ Origin not in allowlist but allowing for compatibility:', origin);
+        return callback(null, true); // Allow all for maximum compatibility
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'X-Requested-With', 
+        'Accept',
+        'Origin',
+        'Cache-Control',
+        'X-File-Name'
+    ],
+    exposedHeaders: ['Content-Length', 'Content-Range'],
+    maxAge: 86400, // 24 hours
+    optionsSuccessStatus: 200
 }));
 
 app.use(express.json({ limit: '10mb' }));
