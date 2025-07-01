@@ -23,29 +23,37 @@ const PORT = process.env.PORT || 3000;
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://rizalitam10:Yusrizal1993@cluster0.s0e5g5h.mongodb.net/kontrakdb?retryWrites=true&w=majority&appName=Cluster0';
 const JWT_SECRET = process.env.JWT_SECRET || 'kontrak_digital_tradestation_secret_key_2024_secure';
-const FIXED_PASSWORD = process.env.FIXED_PASSWORD || 'kontrakdigital2025'; // Password tetap untuk semua user
+const FIXED_PASSWORD = process.env.FIXED_PASSWORD || 'kontrakdigital2025';
 
-// Railway compatibility
+// Railway and domain configuration
 const RAILWAY_DOMAIN = process.env.RAILWAY_PUBLIC_DOMAIN;
-const FRONTEND_URL = process.env.FRONTEND_URL || 
-                    (RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : 'http://localhost:3000');
+const FRONTEND_URL = process.env.FRONTEND_URL;
 
-// Railway production - simplified CORS
+// ✅ FIXED: Enhanced CORS configuration
 const allowedOrigins = [
-    // Production Railway domain
+    // Production domains
     'https://tradestation-backend-production.up.railway.app',
+    'https://kontrakdigital.com',
+    'http://kontrakdigital.com',
+    'https://www.kontrakdigital.com',
+    'http://www.kontrakdigital.com',
+    
+    // Railway domains
+    RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null,
+    
+    // Environment variables
+    FRONTEND_URL,
+    process.env.FRONTEND_URL,
     
     // Development (only if needed for testing)
     ...(process.env.NODE_ENV !== 'production' ? [
         'http://localhost:3000',
         'http://localhost:5000',
         'http://localhost:8080',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5000',
+        'http://127.0.0.1:8080',
     ] : []),
-    
-    // Environment variables
-    FRONTEND_URL,
-    RAILWAY_DOMAIN ? `https://${RAILWAY_DOMAIN}` : null,
-    process.env.FRONTEND_URL
 ].filter(Boolean);
 
 let dbConnected = false;
@@ -355,14 +363,21 @@ async function generateContractPDF(contract) {
 // MIDDLEWARE
 // =====================
 
-app.use(helmet({ crossOriginEmbedderPolicy: false }));
+// ✅ FIXED: Simplified helmet configuration
+app.use(helmet({ 
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
+
+// ✅ FIXED: Enhanced CORS configuration with better origin handling
 app.use(cors({
     origin: function (origin, callback) {
         console.log('🌐 CORS Request from origin:', origin || 'no-origin');
         
-        // Allow requests with no origin (mobile apps, postman, etc)
+        // Allow requests with no origin (mobile apps, postman, curl, etc)
         if (!origin) {
-            console.log('✅ No origin - allowing');
+            console.log('✅ No origin - allowing (mobile/postman/curl)');
             return callback(null, true);
         }
         
@@ -378,13 +393,20 @@ app.use(cors({
             return callback(null, true);
         }
         
+        // Allow kontrakdigital.com and its subdomains
+        if (origin.includes('kontrakdigital.com')) {
+            console.log('✅ KontrakDigital domain allowed:', origin);
+            return callback(null, true);
+        }
+        
         // For development: Allow localhost/127.0.0.1 origins
-        if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        if (process.env.NODE_ENV !== 'production' && 
+            (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
             console.log('✅ Development origin allowed:', origin);
             return callback(null, true);
         }
         
-        console.log('⚠️ Origin not in allowlist but allowing for compatibility:', origin);
+        console.log('⚠️ Origin not explicitly allowed but allowing for maximum compatibility:', origin);
         return callback(null, true); // Allow all for maximum compatibility
     },
     credentials: true,
@@ -396,21 +418,25 @@ app.use(cors({
         'Accept',
         'Origin',
         'Cache-Control',
-        'X-File-Name'
+        'X-File-Name',
+        'X-API-Key'
     ],
-    exposedHeaders: ['Content-Length', 'Content-Range'],
+    exposedHeaders: ['Content-Length', 'Content-Range', 'Content-Disposition'],
     maxAge: 86400, // 24 hours
-    optionsSuccessStatus: 200
+    optionsSuccessStatus: 200,
+    preflightContinue: false
 }));
 
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Rate limiting
+// Rate limiting with more lenient settings
 const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: { error: 'Terlalu banyak permintaan, coba lagi nanti.' }
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200, // Increased from 100
+    message: { error: 'Terlalu banyak permintaan, coba lagi nanti.' },
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 app.use('/api/', limiter);
 
@@ -445,7 +471,14 @@ const authenticateAdmin = async (req, res, next) => {
 async function connectDatabase() {
     try {
         console.log('🔗 Connecting to MongoDB...');
-        await mongoose.connect(MONGODB_URI);
+        
+        await mongoose.connect(MONGODB_URI, {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 10000,
+            socketTimeoutMS: 45000,
+        });
+        
         dbConnected = true;
         console.log('✅ MongoDB connected successfully');
         
@@ -468,6 +501,7 @@ async function connectDatabase() {
     } catch (error) {
         console.error('❌ MongoDB connection error:', error);
         dbConnected = false;
+        // Don't exit, let the app handle it gracefully
     }
 }
 
@@ -475,34 +509,45 @@ async function connectDatabase() {
 // ROUTES
 // =====================
 
-// =====================
-// STATIC FILES & ROUTES
-// =====================
-
-// Serve static files (for Railway deployment)
+// ✅ FIXED: Serve static files properly
 app.use(express.static('public', {
     maxAge: '1d',
     etag: false
 }));
 
-// Health check
+// ✅ FIXED: Enhanced health check
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
         database: dbConnected ? 'connected' : 'disconnected',
-        version: '3.0.0',
+        version: '3.1.0',
         environment: process.env.NODE_ENV || 'development',
         railway: {
             domain: process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost',
             deployment_id: process.env.RAILWAY_DEPLOYMENT_ID || 'local'
+        },
+        cors: {
+            allowedOrigins: allowedOrigins.length,
+            origins: allowedOrigins
         }
     });
 });
 
-// Serve frontend for root path
+// ✅ FIXED: Root endpoint - serve frontend from backend
 app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
+    const indexPath = require('path').join(__dirname, 'index.html');
+    res.sendFile(indexPath, (err) => {
+        if (err) {
+            console.error('Error serving index.html:', err);
+            res.status(500).send(`
+                <h1>TradeStation Digital</h1>
+                <p>Sistem Kontrak Digital</p>
+                <p>Backend API is running. Please check if index.html exists.</p>
+                <p>API Health: <a href="/api/health">/api/health</a></p>
+            `);
+        }
+    });
 });
 
 // Admin login
@@ -826,7 +871,7 @@ app.post('/api/admin/contracts', authenticateAdmin, async (req, res) => {
             userLoginInfo: {
                 contractNumber: contractNumber,
                 password: FIXED_PASSWORD,
-                loginUrl: `${req.protocol}://${req.get('host')}/user-login`
+                loginUrl: `${req.protocol}://${req.get('host')}/`
             }
         });
     } catch (error) {
@@ -852,7 +897,7 @@ app.post('/api/admin/contracts/:id/activate', authenticateAdmin, async (req, res
             userLoginInfo: {
                 contractNumber: contract.number,
                 password: FIXED_PASSWORD,
-                loginUrl: `${req.protocol}://${req.get('host')}/user-login`
+                loginUrl: `${req.protocol}://${req.get('host')}/`
             }
         });
     } catch (error) {
@@ -936,6 +981,15 @@ app.get('/api/admin/stats', authenticateAdmin, async (req, res) => {
     }
 });
 
+// ✅ NEW: API endpoint to get frontend configuration
+app.get('/api/config', (req, res) => {
+    res.json({
+        apiUrl: `${req.protocol}://${req.get('host')}/api`,
+        version: '3.1.0',
+        environment: process.env.NODE_ENV || 'development'
+    });
+});
+
 // Error handling
 app.use((req, res) => {
     res.status(404).json({ error: 'Endpoint tidak ditemukan' });
@@ -955,7 +1009,7 @@ async function startServer() {
         await connectDatabase();
         
         app.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 TradeStation Kontrak Digital v3.0`);
+            console.log(`🚀 TradeStation Kontrak Digital v3.1 - FIXED VERSION`);
             console.log(`📱 Server running on port ${PORT}`);
             console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
             
@@ -963,6 +1017,7 @@ async function startServer() {
                 console.log(`🔗 Railway URL: https://${process.env.RAILWAY_PUBLIC_DOMAIN}`);
                 console.log(`🔗 App: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/`);
                 console.log(`🔗 Health: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/health`);
+                console.log(`🔗 Config: https://${process.env.RAILWAY_PUBLIC_DOMAIN}/api/config`);
             } else {
                 console.log(`🔗 Local URL: http://localhost:${PORT}/`);
                 console.log(`🔗 Health: http://localhost:${PORT}/api/health`);
@@ -972,6 +1027,7 @@ async function startServer() {
             console.log(`👤 Admin Login: admin@kontrakdigital.com / admin123`);
             console.log(`📝 User Login: [Nomor Kontrak] / ${FIXED_PASSWORD}`);
             console.log(`🔒 CORS Origins: ${allowedOrigins.length} configured`);
+            console.log(`✅ CORS Fixed for kontrakdigital.com domain!`);
             console.log(`✅ Ready to serve!`);
         });
 
